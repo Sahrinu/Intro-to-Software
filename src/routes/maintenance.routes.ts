@@ -1,0 +1,220 @@
+import express from 'express';
+import { body, validationResult } from 'express-validator';
+import { authenticate, authorize } from '../middleware/auth.middleware';
+import { dbGet, dbAll, dbRun } from '../utils/db.utils';
+import { UserRole } from '../types';
+
+const router = express.Router();
+
+// Get all maintenance requests
+router.get('/', authenticate, async (req, res) => {
+  try {
+    let requests;
+    
+    // Admins and maintenance staff can see all requests
+    if (req.user!.role === UserRole.ADMIN || req.user!.role === UserRole.MAINTENANCE) {
+      requests = await dbAll(`
+        SELECT mr.*, 
+               u.name as requester_name, u.email as requester_email,
+               a.name as assigned_name
+        FROM maintenance_requests mr
+        JOIN users u ON mr.user_id = u.id
+        LEFT JOIN users a ON mr.assigned_to = a.id
+        ORDER BY 
+          CASE mr.priority
+            WHEN 'urgent' THEN 1
+            WHEN 'high' THEN 2
+            WHEN 'medium' THEN 3
+            WHEN 'low' THEN 4
+          END,
+          mr.created_at DESC
+      `);
+    } else {
+      // Users can only see their own requests
+      requests = await dbAll(`
+        SELECT mr.*, 
+               u.name as requester_name, u.email as requester_email,
+               a.name as assigned_name
+        FROM maintenance_requests mr
+        JOIN users u ON mr.user_id = u.id
+        LEFT JOIN users a ON mr.assigned_to = a.id
+        WHERE mr.user_id = ?
+        ORDER BY mr.created_at DESC
+      `, [req.user!.userId]);
+    }
+
+    res.json(requests);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get maintenance request by ID
+router.get('/:id', authenticate, async (req, res) => {
+  try {
+    const request: any = await dbGet(`
+      SELECT mr.*, 
+             u.name as requester_name, u.email as requester_email,
+             a.name as assigned_name
+      FROM maintenance_requests mr
+      JOIN users u ON mr.user_id = u.id
+      LEFT JOIN users a ON mr.assigned_to = a.id
+      WHERE mr.id = ?
+    `, [req.params.id]);
+
+    if (!request) {
+      return res.status(404).json({ error: 'Maintenance request not found' });
+    }
+
+    // Users can only see their own requests unless admin/maintenance
+    if (req.user!.role !== UserRole.ADMIN && 
+        req.user!.role !== UserRole.MAINTENANCE && 
+        request.user_id !== req.user!.userId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    res.json(request);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Create maintenance request
+router.post('/',
+  authenticate,
+  [
+    body('title').trim().notEmpty(),
+    body('description').trim().notEmpty(),
+    body('location').trim().notEmpty(),
+    body('priority').optional().isIn(['low', 'medium', 'high', 'urgent'])
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { title, description, location, priority = 'medium' } = req.body;
+
+      const result = await dbRun(
+        `INSERT INTO maintenance_requests (user_id, title, description, location, priority, status)
+         VALUES (?, ?, ?, ?, ?, 'pending')`,
+        [req.user!.userId, title, description, location, priority]
+      );
+
+      const request = await dbGet('SELECT * FROM maintenance_requests WHERE id = ?', [result.lastID]);
+      res.status(201).json(request);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+// Update maintenance request status (admin/maintenance only)
+router.patch('/:id/status',
+  authenticate,
+  authorize(UserRole.ADMIN, UserRole.MAINTENANCE),
+  [
+    body('status').isIn(['pending', 'in_progress', 'completed', 'cancelled'])
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { status } = req.body;
+      await dbRun(
+        'UPDATE maintenance_requests SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [status, req.params.id]
+      );
+
+      const request = await dbGet('SELECT * FROM maintenance_requests WHERE id = ?', [req.params.id]);
+      res.json(request);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+// Assign maintenance request (admin/maintenance only)
+router.patch('/:id/assign',
+  authenticate,
+  authorize(UserRole.ADMIN, UserRole.MAINTENANCE),
+  [
+    body('assigned_to').isInt()
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { assigned_to } = req.body;
+      await dbRun(
+        'UPDATE maintenance_requests SET assigned_to = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [assigned_to, req.params.id]
+      );
+
+      const request = await dbGet('SELECT * FROM maintenance_requests WHERE id = ?', [req.params.id]);
+      res.json(request);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+// Update maintenance request (requester or admin/maintenance)
+router.put('/:id',
+  authenticate,
+  [
+    body('title').optional().trim().notEmpty(),
+    body('description').optional().trim().notEmpty(),
+    body('location').optional().trim().notEmpty(),
+    body('priority').optional().isIn(['low', 'medium', 'high', 'urgent'])
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const request: any = await dbGet('SELECT * FROM maintenance_requests WHERE id = ?', [req.params.id]);
+
+      if (!request) {
+        return res.status(404).json({ error: 'Maintenance request not found' });
+      }
+
+      // Check permissions
+      if (req.user!.role !== UserRole.ADMIN && 
+          req.user!.role !== UserRole.MAINTENANCE && 
+          request.user_id !== req.user!.userId) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      const updates: any = {};
+      if (req.body.title) updates.title = req.body.title;
+      if (req.body.description) updates.description = req.body.description;
+      if (req.body.location) updates.location = req.body.location;
+      if (req.body.priority) updates.priority = req.body.priority;
+
+      const setClause = Object.keys(updates).map(key => `${key} = ?`).join(', ');
+      const values = [...Object.values(updates), req.params.id];
+
+      await dbRun(`UPDATE maintenance_requests SET ${setClause}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, values);
+
+      const updatedRequest = await dbGet('SELECT * FROM maintenance_requests WHERE id = ?', [req.params.id]);
+      res.json(updatedRequest);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+export default router;
+
+
