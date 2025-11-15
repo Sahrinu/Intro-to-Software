@@ -4,10 +4,10 @@ import { authAPI, User } from '../services/api';
 interface AuthContextType {
   user: User | null;
   token: string | null;
-  login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string, role: string) => Promise<void>;
-  logout: () => void;
   loading: boolean;
+  login: (email: string, password: string) => Promise<User>; // already fixed
+  register: (name: string, email: string, password: string, role: string) => Promise<void>; // ✅ fix here
+  logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -38,11 +38,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (email: string, password: string) => {
     const response = await authAPI.login(email, password);
+  
+    // Save token and user info
     setToken(response.token);
     setUser(response.user);
+  
     localStorage.setItem('token', response.token);
     localStorage.setItem('user', JSON.stringify(response.user));
-  };
+  
+    // Return user for role-based navigation
+    return response.user;
+  };  
 
   const register = async (name: string, email: string, password: string, role: string) => {
     await authAPI.register(name, email, password, role);
