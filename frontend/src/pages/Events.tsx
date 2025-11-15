@@ -8,6 +8,9 @@ const Events = () => {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [clickPopupDay, setClickPopupDay] = useState<number | null>(null);
+  const [showClickPopup, setShowClickPopup] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState({
@@ -23,6 +26,23 @@ const Events = () => {
   useEffect(() => {
     loadEvents();
   }, []);
+
+  // close click-popup when clicking outside
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (clickPopupDay === null) return;
+      const target = e.target as Node;
+      const popup = document.querySelector('.hover-popup');
+      if (popup && popup.contains(target)) return;
+      const dayEl = document.querySelector(`.calendar-day[data-day="${clickPopupDay}"]`);
+      if (dayEl && dayEl.contains(target)) return;
+      setShowClickPopup(false);
+      setClickPopupDay(null);
+      setSelectedDay(null);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [clickPopupDay]);
 
   const loadEvents = async () => {
     try {
@@ -154,8 +174,26 @@ const Events = () => {
     // Days of the month
     for (let day = 1; day <= daysInMonth; day++) {
       const dayEvents = getEventsForDate(day);
+      const isSelected = selectedDay === day;
       days.push(
-        <div key={day} className="calendar-day">
+        <div
+          key={day}
+          className={`calendar-day${isSelected ? ' selected' : ''}`}
+          data-day={day}
+          onClick={() => {
+            // toggle click-popup for this day
+            if (clickPopupDay === day && showClickPopup) {
+              setShowClickPopup(false);
+              setClickPopupDay(null);
+              setSelectedDay(null);
+            } else {
+              setClickPopupDay(day);
+              setShowClickPopup(true);
+              setSelectedDay(day);
+            }
+          }}
+          style={{ cursor: 'pointer' }}
+        >
           <div className="calendar-day-number">{day}</div>
           <div className="calendar-day-events">
             {dayEvents.slice(0, 2).map((event) => (
@@ -167,31 +205,47 @@ const Events = () => {
               <div className="calendar-event more">+{dayEvents.length - 2}</div>
             )}
           </div>
+          {showClickPopup && clickPopupDay === day && (
+            <div className="hover-popup">
+              {dayEvents.length === 0 ? (
+                <div className="hover-empty">No events</div>
+              ) : (
+                dayEvents.map((ev) => (
+                  <div key={ev.id} className="hover-item">
+                    <div className="hover-title">{ev.title}</div>
+                    <div className="hover-meta">{new Date(ev.start_time).toLocaleString()} - {ev.location || 'No location'}</div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
         </div>
       );
     }
 
     return (
-      <div className="calendar-container">
-        <div className="calendar-header">
-          <button onClick={previousMonth} className="btn btn-small">
-            ←
-          </button>
-          <h3>{monthName}</h3>
-          <button onClick={nextMonth} className="btn btn-small">
-            →
-          </button>
+      <div className ="calendar-wrapper">
+        <div className="calendar-container">
+          <div className="calendar-header">
+            <button onClick={previousMonth} className="btn btn-small">
+              ←
+            </button>
+            <h3>{monthName}</h3>
+            <button onClick={nextMonth} className="btn btn-small">
+              →
+            </button>
+          </div>
+          <div className="calendar-weekdays">
+            <div className="weekday">Sun</div>
+            <div className="weekday">Mon</div>
+            <div className="weekday">Tue</div>
+            <div className="weekday">Wed</div>
+            <div className="weekday">Thu</div>
+            <div className="weekday">Fri</div>
+            <div className="weekday">Sat</div>
+          </div>
+          <div className="calendar-days">{days}</div>
         </div>
-        <div className="calendar-weekdays">
-          <div className="weekday">Sun</div>
-          <div className="weekday">Mon</div>
-          <div className="weekday">Tue</div>
-          <div className="weekday">Wed</div>
-          <div className="weekday">Thu</div>
-          <div className="weekday">Fri</div>
-          <div className="weekday">Sat</div>
-        </div>
-        <div className="calendar-days">{days}</div>
       </div>
     );
   };
@@ -359,6 +413,8 @@ const Events = () => {
           </div>
         </div>
       )}
+
+      
     </div>
   );
 };
