@@ -1,8 +1,9 @@
 import sqlite3 from 'sqlite3';
 import path from 'path';
+import bcrypt from 'bcryptjs';
 
-const dbPath = path.join(__dirname, '../../campus_management.db');
-let db: sqlite3.Database;
+const dbPath = path.resolve(process.cwd(), 'src/campus_management.db');
+let db: sqlite3.Database | null = null;
 
 export const getDb = (): sqlite3.Database => {
   if (!db) {
@@ -17,19 +18,28 @@ export const getDb = (): sqlite3.Database => {
   return db;
 };
 
-const run = (db: sqlite3.Database, sql: string): Promise<void> => {
+const run = (db: sqlite3.Database, sql: string, params: any[] = []): Promise<void> => {
   return new Promise((resolve, reject) => {
-    db.run(sql, (err) => {
+    db.run(sql, params, (err) => {
       if (err) reject(err);
       else resolve();
     });
   });
 };
 
+const get = <T = any>(db: sqlite3.Database, sql: string, params: any[] = []): Promise<T | undefined> => {
+  return new Promise((resolve, reject) => {
+    db.get(sql, params, (err, row) => {
+      if (err) reject(err);
+      else resolve(row as T);
+    });
+  });
+};
+
 export const initializeDatabase = async (): Promise<void> => {
   const database = getDb();
-  
-  // Users table
+
+  // --- USERS TABLE ---
   await run(database, `
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -42,7 +52,7 @@ export const initializeDatabase = async (): Promise<void> => {
     )
   `);
 
-  // Bookings table
+  // --- BOOKINGS TABLE ---
   await run(database, `
     CREATE TABLE IF NOT EXISTS bookings (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -57,7 +67,7 @@ export const initializeDatabase = async (): Promise<void> => {
     )
   `);
 
-  // Events table
+  // --- EVENTS TABLE ---
   await run(database, `
     CREATE TABLE IF NOT EXISTS events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -73,7 +83,7 @@ export const initializeDatabase = async (): Promise<void> => {
     )
   `);
 
-  // Maintenance requests table
+  // --- MAINTENANCE REQUESTS TABLE ---
   await run(database, `
     CREATE TABLE IF NOT EXISTS maintenance_requests (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -91,31 +101,29 @@ export const initializeDatabase = async (): Promise<void> => {
     )
   `);
 
-  // Create default admin user if not exists
-  const bcrypt = require('bcryptjs');
-  const defaultPassword = await bcrypt.hash('admin123', 10);
-  
-  const existingAdmin = await new Promise<any>((resolve, reject) => {
-    database.get('SELECT id FROM users WHERE email = ?', ['admin@campus.edu'], (err, row) => {
-      if (err) reject(err);
-      else resolve(row);
-    });
-  });
+  // --- DEFAULT USERS ---
+  const adminPassword = await bcrypt.hash('admin123', 10);
+  const maintenancePassword = await bcrypt.hash('m123123', 10);
 
+  // Default Admin
+  const existingAdmin = await get(database, 'SELECT id FROM users WHERE email = ?', ['admin@campus.edu']);
   if (!existingAdmin) {
-    await new Promise<void>((resolve, reject) => {
-      database.run(
-        'INSERT INTO users (email, password, name, role) VALUES (?, ?, ?, ?)',
-        ['admin@campus.edu', defaultPassword, 'Admin User', 'admin'],
-        (err) => {
-          if (err) reject(err);
-          else resolve();
-        }
-      );
-    });
-    console.log('Default admin user created (email: admin@campus.edu, password: admin123)');
+    await run(database,
+      'INSERT INTO users (email, password, name, role) VALUES (?, ?, ?, ?)',
+      ['admin@campus.edu', adminPassword, 'Admin User', 'admin']
+    );
+    console.log('Default admin user created: admin@campus.edu / admin123');
   }
 
-  console.log('Database tables created successfully');
-};
+  // Default Maintenance
+  const existingMaintenance = await get(database, 'SELECT id FROM users WHERE email = ?', ['maintenance@campus.edu']);
+  if (!existingMaintenance) {
+    await run(database,
+      'INSERT INTO users (email, password, name, role) VALUES (?, ?, ?, ?)',
+      ['maintenance@campus.edu', maintenancePassword, 'Maintenance User', 'maintenance']
+    );
+    console.log('Default maintenance user created: maintenance@campus.edu / m123123');
+  }
 
+  console.log('Database tables initialized successfully');
+};
