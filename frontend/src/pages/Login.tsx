@@ -20,7 +20,7 @@ const Login = () => {
       
       // Example: user.role could be 'admin', 'maintenance', or 'user'
       if (user.role === 'admin') {
-        navigate('/admin');
+        navigate('/dashboard');
       } else if (user.role === 'maintenance') {
         navigate('/maintenance');
       } else {
