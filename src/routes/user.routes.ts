@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
 import { authenticate, authorize } from '../middleware/auth.middleware';
 import { dbGet, dbAll } from '../utils/db.utils';
 import { UserRole } from '../types';
@@ -6,7 +6,7 @@ import { UserRole } from '../types';
 const router = express.Router();
 
 // Get current user profile
-router.get('/me', authenticate, async (req, res) => {
+router.get('/me', authenticate, async (req: Request & { user?: any }, res: Response) => {
   try {
     const user: any = await dbGet(
       'SELECT id, email, name, role, created_at FROM users WHERE id = ?',
@@ -24,7 +24,7 @@ router.get('/me', authenticate, async (req, res) => {
 });
 
 // Get all users (admin only)
-router.get('/', authenticate, authorize(UserRole.ADMIN), async (req, res) => {
+router.get('/', authenticate, authorize(UserRole.ADMIN), async (req: Request & { user?: any }, res: Response) => {
   try {
     const users = await dbAll(
       'SELECT id, email, name, role, created_at FROM users'
@@ -36,7 +36,7 @@ router.get('/', authenticate, authorize(UserRole.ADMIN), async (req, res) => {
 });
 
 // Get user by ID
-router.get('/:id', authenticate, async (req, res) => {
+router.get('/:id', authenticate, async (req: Request & { user?: any }, res: Response) => {
   try {
     const user: any = await dbGet(
       'SELECT id, email, name, role, created_at FROM users WHERE id = ?',

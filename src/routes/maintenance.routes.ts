@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import { authenticate, authorize } from '../middleware/auth.middleware';
 import { dbGet, dbAll, dbRun } from '../utils/db.utils';
@@ -7,7 +7,7 @@ import { UserRole } from '../types';
 const router = express.Router();
 
 // Get all maintenance requests
-router.get('/', authenticate, async (req, res) => {
+router.get('/', authenticate, async (req: Request & { user?: any }, res: Response) => {
   try {
     let requests;
     
@@ -50,7 +50,7 @@ router.get('/', authenticate, async (req, res) => {
 });
 
 // Get maintenance request by ID
-router.get('/:id', authenticate, async (req, res) => {
+router.get('/:id', authenticate, async (req: Request & { user?: any }, res: Response) => {
   try {
     const request: any = await dbGet(`
       SELECT mr.*, 
@@ -88,7 +88,7 @@ router.post('/',
     body('location').trim().notEmpty(),
     body('priority').optional().isIn(['low', 'medium', 'high', 'urgent'])
   ],
-  async (req, res) => {
+  async (req: Request & { user?: any }, res: Response) => {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
@@ -118,7 +118,7 @@ router.patch('/:id/status',
   [
     body('status').isIn(['pending', 'in_progress', 'completed', 'cancelled'])
   ],
-  async (req, res) => {
+  async (req: Request & { user?: any }, res: Response) => {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
@@ -146,7 +146,7 @@ router.patch('/:id/assign',
   [
     body('assigned_to').isInt()
   ],
-  async (req, res) => {
+  async (req: Request & { user?: any }, res: Response) => {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
@@ -176,7 +176,7 @@ router.put('/:id',
     body('location').optional().trim().notEmpty(),
     body('priority').optional().isIn(['low', 'medium', 'high', 'urgent'])
   ],
-  async (req, res) => {
+  async (req: Request & { user?: any }, res: Response) => {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {

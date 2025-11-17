@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import { authenticate, authorize } from '../middleware/auth.middleware';
 import { dbGet, dbAll, dbRun } from '../utils/db.utils';
@@ -7,7 +7,7 @@ import { UserRole } from '../types';
 const router = express.Router();
 
 // Get all bookings
-router.get('/', authenticate, async (req, res) => {
+router.get('/', authenticate, async (req: Request & { user?: any }, res: Response) => {
   try {
     let bookings;
     
@@ -37,7 +37,7 @@ router.get('/', authenticate, async (req, res) => {
 });
 
 // Get booking by ID
-router.get('/:id', authenticate, async (req, res) => {
+router.get('/:id', authenticate, async (req: Request & { user?: any }, res: Response) => {
   try {
     const booking: any = await dbGet(`
       SELECT b.*, u.name as user_name, u.email as user_email
@@ -72,7 +72,7 @@ router.post('/',
     body('start_time').isISO8601(),
     body('end_time').isISO8601()
   ],
-  async (req, res) => {
+  async (req: Request & { user?: any }, res: Response) => {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
@@ -115,7 +115,7 @@ router.put('/:id',
     body('start_time').optional().isISO8601(),
     body('end_time').optional().isISO8601()
   ],
-  async (req, res) => {
+  async (req: Request & { user?: any }, res: Response) => {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
@@ -165,7 +165,7 @@ router.patch('/:id/status',
   [
     body('status').isIn(['pending', 'approved', 'rejected', 'completed'])
   ],
-  async (req, res) => {
+  async (req: Request & { user?: any }, res: Response) => {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
@@ -184,7 +184,7 @@ router.patch('/:id/status',
 );
 
 // Delete booking
-router.delete('/:id', authenticate, async (req, res) => {
+router.delete('/:id', authenticate, async (req: Request & { user?: any }, res: Response) => {
   try {
     const booking: any = await dbGet('SELECT * FROM bookings WHERE id = ?', [req.params.id]);
 

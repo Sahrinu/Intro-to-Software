@@ -289,7 +289,7 @@ const Events = () => {
             <div key={event.id} className="list-item">
               <div className="list-item-header">
                 <div className="list-item-title">{event.title}</div>
-                {user && event.organizer_id === user.id && (
+                {user && (event.organizer_id === user.id || user.role === 'admin') && (
                   <div className="list-item-actions">
                     <button
                       className="btn btn-small"

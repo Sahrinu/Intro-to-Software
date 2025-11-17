@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import { authenticate, authorize } from '../middleware/auth.middleware';
 import { dbGet, dbAll, dbRun } from '../utils/db.utils';
@@ -7,7 +7,7 @@ import { UserRole } from '../types';
 const router = express.Router();
 
 // Get all events
-router.get('/', async (req, res) => {
+router.get('/', async (req: Request, res: Response) => {
   try {
     const events = await dbAll(`
       SELECT e.*, u.name as organizer_name
@@ -22,7 +22,7 @@ router.get('/', async (req, res) => {
 });
 
 // Get event by ID
-router.get('/:id', async (req, res) => {
+router.get('/:id', async (req: Request, res: Response) => {
   try {
     const event: any = await dbGet(`
       SELECT e.*, u.name as organizer_name
@@ -52,7 +52,7 @@ router.post('/',
     body('location').optional(),
     body('category').optional()
   ],
-  async (req, res) => {
+  async (req: Request & { user?: any }, res: Response) => {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
@@ -83,7 +83,7 @@ router.put('/:id',
     body('start_time').optional().isISO8601(),
     body('end_time').optional().isISO8601()
   ],
-  async (req, res) => {
+  async (req: Request & { user?: any }, res: Response) => {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
@@ -123,7 +123,7 @@ router.put('/:id',
 );
 
 // Delete event (organizer or admin only)
-router.delete('/:id', authenticate, async (req, res) => {
+router.delete('/:id', authenticate, async (req: Request & { user?: any }, res: Response) => {
   try {
     const event: any = await dbGet('SELECT * FROM events WHERE id = ?', [req.params.id]);
 
