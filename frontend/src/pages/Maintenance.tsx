@@ -1,7 +1,10 @@
-import { useState, useEffect } from 'react';
-import { maintenanceAPI, MaintenanceRequest } from '../services/api';
+import { useEffect, useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import { maintenanceAPI, MaintenanceRequest, usersAPI, User } from '../services/api';
 
 const Maintenance = () => {
+  const { user } = useAuth();
+  const isManager = user?.role === 'admin' || user?.role === 'maintenance';
   const [requests, setRequests] = useState<MaintenanceRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -12,12 +15,22 @@ const Maintenance = () => {
     priority: 'medium',
   });
   const [error, setError] = useState('');
+  const [staff, setStaff] = useState<User[]>([]);
+  const [statusUpdatingId, setStatusUpdatingId] = useState<number | null>(null);
+  const [assigningId, setAssigningId] = useState<number | null>(null);
 
   useEffect(() => {
     loadRequests();
   }, []);
 
+  useEffect(() => {
+    if (isManager) {
+      loadStaff();
+    }
+  }, [isManager]);
+
   const loadRequests = async () => {
+    setLoading(true);
     try {
       const data = await maintenanceAPI.getAll();
       setRequests(data);
@@ -44,6 +57,42 @@ const Maintenance = () => {
       await loadRequests();
     } catch (err: any) {
       setError(err.message);
+    }
+  };
+
+  const loadStaff = async () => {
+    try {
+      const data = await usersAPI.getMaintenanceStaff();
+      setStaff(data);
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  const handleStatusChange = async (id: number, status: MaintenanceRequest['status']) => {
+    setError('');
+    setStatusUpdatingId(id);
+    try {
+      await maintenanceAPI.updateStatus(id, status);
+      await loadRequests();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setStatusUpdatingId(null);
+    }
+  };
+
+  const handleAssignChange = async (id: number, assignedTo: string) => {
+    if (!assignedTo) return;
+    setError('');
+    setAssigningId(id);
+    try {
+      await maintenanceAPI.assign(id, Number(assignedTo));
+      await loadRequests();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setAssigningId(null);
     }
   };
 
@@ -82,7 +131,46 @@ const Maintenance = () => {
                   </>
                 )}
                 <br />Created: {new Date(request.created_at).toLocaleString()}
+                {isManager && request.assigned_name == null && (
+                  <>
+                    <br />Assigned to: Unassigned
+                  </>
+                )}
               </div>
+              {isManager && (
+                <div className="list-item-actions">
+                  <div className="form-group">
+                    <label>Status</label>
+                    <select
+                      value={request.status}
+                      onChange={(e) =>
+                        handleStatusChange(request.id, e.target.value as MaintenanceRequest['status'])
+                      }
+                      disabled={statusUpdatingId === request.id}
+                    >
+                      <option value="pending">Pending</option>
+                      <option value="in_progress">In Progress</option>
+                      <option value="completed">Completed</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Assign</label>
+                    <select
+                      value={request.assigned_to ?? ''}
+                      onChange={(e) => handleAssignChange(request.id, e.target.value)}
+                      disabled={assigningId === request.id}
+                    >
+                      <option value="">Select staff</option>
+                      {staff.map((member) => (
+                        <option key={member.id} value={member.id}>
+                          {member.name} ({member.email})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -159,5 +247,3 @@ const Maintenance = () => {
 };
 
 export default Maintenance;
-
-
