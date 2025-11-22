@@ -19,7 +19,10 @@ const Dashboard = () => {
         ]);
         setBookingCount(bookings.length);
         setEventCount(events.length);
-        setMaintenanceCount(maintenance.length);
+        const activeMaintenance = maintenance.filter(
+          (request) => request.status === 'pending' || request.status === 'in_progress'
+        );
+        setMaintenanceCount(activeMaintenance.length);
       } catch (error) {
         console.error('Error loading dashboard:', error);
       } finally {

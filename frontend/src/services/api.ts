@@ -197,6 +197,11 @@ export const maintenanceAPI = {
     }),
 };
 
+export const usersAPI = {
+  getMaintenanceStaff: (): Promise<User[]> =>
+    apiRequest<User[]>('/users/maintenance-staff'),
+};
+
 export const assistantAPI = {
   chat: (message: string): Promise<{ response: string; source: string }> =>
     apiRequest<{ response: string; source: string }>('/assistant/chat', {
@@ -204,5 +209,4 @@ export const assistantAPI = {
       body: JSON.stringify({ message }),
     }),
 };
-
 

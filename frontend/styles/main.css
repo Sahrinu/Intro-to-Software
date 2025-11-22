@@ -842,4 +842,24 @@ body {
     }
 }
 
-
+.section-header {
+    display: flex;
+    margin : 0 auto;
+    max-width: 80%;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+    color:rgb(122, 211, 154);
+}
+.section-para {
+    display: flex;
+    margin : 0 auto;
+    max-width: 80%;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}

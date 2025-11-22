@@ -23,6 +23,19 @@ router.get('/me', authenticate, async (req: Request & { user?: any }, res: Respo
   }
 });
 
+// Get maintenance staff (admin or maintenance)
+router.get('/maintenance-staff', authenticate, authorize(UserRole.ADMIN, UserRole.MAINTENANCE), async (_req: Request, res: Response) => {
+  try {
+    const staff = await dbAll(
+      'SELECT id, email, name, role FROM users WHERE role = ?',
+      [UserRole.MAINTENANCE]
+    );
+    res.json(staff);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get all users (admin only)
 router.get('/', authenticate, authorize(UserRole.ADMIN), async (req: Request & { user?: any }, res: Response) => {
   try {
@@ -59,5 +72,4 @@ router.get('/:id', authenticate, async (req: Request & { user?: any }, res: Resp
 });
 
 export default router;
-
 
