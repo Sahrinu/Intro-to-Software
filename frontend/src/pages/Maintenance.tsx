@@ -96,8 +96,19 @@ const Maintenance = () => {
     }
   };
 
+  // Separate requests into "active", "completed", and "cancelled"
+  const activeRequests = requests.filter(
+    (request) => request.status !== 'completed' && request.status !== 'cancelled'
+  );
+  const completedRequests = requests.filter(
+    (request) => request.status === 'completed'
+  );
+  const cancelledRequests = requests.filter(
+    (request) => request.status === 'cancelled'
+  );
+
   return (
-    <div className="page">
+    <div className="maintenance-page">
       <div className="page-header">
         <h2>Maintenance Requests</h2>
         <button className="btn btn-primary" onClick={() => setShowModal(true)}>
@@ -109,71 +120,134 @@ const Maintenance = () => {
 
       {loading ? (
         <div className="loading">Loading...</div>
-      ) : requests.length === 0 ? (
-        <p className="loading">No maintenance requests found.</p>
       ) : (
-        <div className="list-container">
-          {requests.map((request) => (
-            <div key={request.id} className="list-item">
-              <div className="list-item-header">
-                <div className="list-item-title">{request.title}</div>
-                <span className={`list-item-status status-${request.status}`}>
-                  {request.status}
-                </span>
-              </div>
-              <div className="list-item-meta">
-                {request.description}
-                <br />📍 {request.location}
-                <br />Priority: {request.priority}
-                {request.assigned_name && (
-                  <>
-                    <br />Assigned to: {request.assigned_name}
-                  </>
-                )}
-                <br />Created: {new Date(request.created_at).toLocaleString()}
-                {isManager && request.assigned_name == null && (
-                  <>
-                    <br />Assigned to: Unassigned
-                  </>
-                )}
-              </div>
-              {isManager && (
-                <div className="list-item-actions">
-                  <div className="form-group">
-                    <label>Status</label>
-                    <select
-                      value={request.status}
-                      onChange={(e) =>
-                        handleStatusChange(request.id, e.target.value as MaintenanceRequest['status'])
-                      }
-                      disabled={statusUpdatingId === request.id}
-                    >
-                      <option value="pending">Pending</option>
-                      <option value="in_progress">In Progress</option>
-                      <option value="completed">Completed</option>
-                      <option value="cancelled">Cancelled</option>
-                    </select>
+        <>
+          <h3 className="section-header">Active Requests</h3>
+          {activeRequests.length === 0 ? (
+            <p className="section-para">No active maintenance requests found.</p>
+          ) : (
+            <div className="list-container">
+              {activeRequests.map((request) => (
+                <div key={request.id} className="list-item">
+                  <div className="list-item-header">
+                    <div className="list-item-title">{request.title}</div>
+                    <span className={`list-item-status status-${request.status}`}>
+                      {request.status}
+                    </span>
                   </div>
-                  <div className="form-group">
-                    <label>Assign</label>
-                    <select
-                      value={request.assigned_to ?? ''}
-                      onChange={(e) => handleAssignChange(request.id, e.target.value)}
-                      disabled={assigningId === request.id}
-                    >
-                      <option value="">Select staff</option>
-                      {staff.map((member) => (
-                        <option key={member.id} value={member.id}>
-                          {member.name} ({member.email})
-                        </option>
-                      ))}
-                    </select>
+                  <div className="list-item-meta">
+                    {request.description}
+                    <br />📍 {request.location}
+                    <br />Priority: {request.priority}
+                    {request.assigned_name && (
+                      <>
+                        <br />Assigned to: {request.assigned_name}
+                      </>
+                    )}
+                    <br />Created: {new Date(request.created_at).toLocaleString()}
+                  </div>
+                  {isManager && (
+                    <div className="list-item-actions">
+                      <div className="form-group">
+                        <label>Status</label>
+                        <select
+                          value={request.status}
+                          onChange={(e) =>
+                            handleStatusChange(
+                              request.id,
+                              e.target.value as MaintenanceRequest['status']
+                            )
+                          }
+                          disabled={statusUpdatingId === request.id}
+                        >
+                          <option value="pending">Pending</option>
+                          <option value="in_progress">In Progress</option>
+                          <option value="completed">Completed</option>
+                          <option value="cancelled">Cancelled</option>
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label>Assign</label>
+                        <select
+                          value={request.assigned_to ?? ''}
+                          onChange={(e) => handleAssignChange(request.id, e.target.value)}
+                          disabled={assigningId === request.id}
+                        >
+                          <option value="">Select staff</option>
+                          {staff.map((member) => (
+                            <option key={member.id} value={member.id}>
+                              {member.name} ({member.email})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <h3 className="section-header">Completed Requests</h3>
+          {completedRequests.length === 0 ? (
+            <p className="section-para">No completed maintenance requests found.</p>
+          ) : (
+            <div className="list-container">
+              {completedRequests.map((request) => (
+                <div key={request.id} className="list-item">
+                  <div className="list-item-header">
+                    <div className="list-item-title">{request.title}</div>
+                    <span className={`list-item-status status-${request.status}`}>
+                      {request.status}
+                    </span>
+                  </div>
+                  <div className="list-item-meta">
+                    {request.description}
+                    <br />📍 {request.location}
+                    <br />Priority: {request.priority}
+                    {request.assigned_name && (
+                      <>
+                        <br />Assigned to: {request.assigned_name}
+                      </>
+                    )}
+                    <br />Created: {new Date(request.created_at).toLocaleString()}
+                    <br />Completed: {new Date(request.updated_at).toLocaleString()}
                   </div>
                 </div>
-              )}
+              ))}
             </div>
-          ))}
-        </div>
+          )}
+
+          <h3 className="section-header">Cancelled Requests</h3>
+          {cancelledRequests.length === 0 ? (
+            <p className="section-para">No cancelled maintenance requests found.</p>
+          ) : (
+            <div className="list-container">
+              {cancelledRequests.map((request) => (
+                <div key={request.id} className="list-item">
+                  <div className="list-item-header">
+                    <div className="list-item-title">{request.title}</div>
+                    <span className={`list-item-status status-${request.status}`}>
+                      {request.status}
+                    </span>
+                  </div>
+                  <div className="list-item-meta">
+                    {request.description}
+                    <br />📍 {request.location}
+                    <br />Priority: {request.priority}
+                    {request.assigned_name && (
+                      <>
+                        <br />Assigned to: {request.assigned_name}
+                      </>
+                    )}
+                    <br />Created: {new Date(request.created_at).toLocaleString()}
+                    <br />Cancelled: {new Date(request.updated_at).toLocaleString()}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {showModal && (
