@@ -8,6 +8,7 @@ const Maintenance = () => {
   const [requests, setRequests] = useState<MaintenanceRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -96,14 +97,23 @@ const Maintenance = () => {
     }
   };
 
+  // Filter requests by search query (title and priority)
+  const filteredRequests = requests.filter((request) => {
+    const query = searchQuery.toLowerCase();
+    return (
+      request.title.toLowerCase().includes(query) ||
+      request.priority.toLowerCase().includes(query)
+    );
+  });
+
   // Separate requests into "active", "completed", and "cancelled"
-  const activeRequests = requests.filter(
+  const activeRequests = filteredRequests.filter(
     (request) => request.status !== 'completed' && request.status !== 'cancelled'
   );
-  const completedRequests = requests.filter(
+  const completedRequests = filteredRequests.filter(
     (request) => request.status === 'completed'
   );
-  const cancelledRequests = requests.filter(
+  const cancelledRequests = filteredRequests.filter(
     (request) => request.status === 'cancelled'
   );
 
@@ -111,9 +121,18 @@ const Maintenance = () => {
     <div className="maintenance-page">
       <div className="page-header">
         <h2>Maintenance Requests</h2>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}>
-          New Request
-        </button>
+        <div className="header-actions">
+          <input
+            type="text"
+            className="search-input"
+            placeholder="Search by title or priority..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+            New Request
+          </button>
+        </div>
       </div>
 
       {error && <div className="error">{error}</div>}

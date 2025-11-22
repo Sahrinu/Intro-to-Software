@@ -50,9 +50,8 @@ const Assistant = () => {
 
   return (
     <div className="page">
-      <div className="page-header">
+      <div className="page-header" style={{ justifyContent: 'center' }}>
         <h2>AI Campus Assistant</h2>
-        <p>Ask me anything about campus resources, bookings, events, or sustainability!</p>
       </div>
 
       <div className="assistant-container">
