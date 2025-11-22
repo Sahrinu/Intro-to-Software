@@ -7,6 +7,7 @@ const Bookings = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState({
     resource_type: 'room',
@@ -88,24 +89,37 @@ const Bookings = () => {
     });
   };
 
+  const filteredBookings = bookings.filter((booking) =>
+    booking.resource_name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
     <div className="page">
       <div className="page-header">
         <h2>Resource Bookings</h2>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}>
-          New Booking
-        </button>
+        <div className="header-actions">
+          <input
+            type="text"
+            className="search-input"
+            placeholder="Search by resource name..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+            New Booking
+          </button>
+        </div>
       </div>
 
       {error && <div className="error">{error}</div>}
 
       {loading ? (
         <div className="loading">Loading...</div>
-      ) : bookings.length === 0 ? (
+      ) : filteredBookings.length === 0 ? (
         <p className="loading">No bookings found.</p>
       ) : (
         <div className="list-container">
-          {bookings.map((booking) => (
+          {filteredBookings.map((booking) => (
             <div key={booking.id} className="list-item">
               <div className="list-item-header">
                 <div className="list-item-title">

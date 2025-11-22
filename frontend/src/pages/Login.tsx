@@ -16,22 +16,13 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const user = await login(email, password); // assume login() returns user data
-      
-      // Example: user.role could be 'admin', 'maintenance', or 'user'
-      if (user.role === 'admin') {
-        navigate('/admin');
-      } else if (user.role === 'maintenance') {
-        navigate('/maintenance');
-      } else {
-        navigate('/dashboard');
-      }
+      await login(email, password);
+      navigate('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Login failed');
     } finally {
       setLoading(false);
     }
-    
   };
 
   return (
