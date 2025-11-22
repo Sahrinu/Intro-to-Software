@@ -10,7 +10,7 @@
     box-sizing: border-box;
 }
 :root {
-    --primary-color: #7ad39a;
+    --primary-color: rgb(99, 173, 107);;
 /* removed stray closing brace */
     --primary-dark: #2f8f4f;
     --secondary-color: #2f7f5e;
@@ -119,6 +119,61 @@ body {
     flex-wrap: wrap;
 }
 
+.search-group {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.search-input {
+    padding: 0.65rem 2.75rem 0.65rem 1.25rem;
+    font-size: 0.95rem;
+    background: var(--bg-color);
+    color: var(--text-color);
+    border: 2px solid var(--primary-color);
+    border-radius: 6px;
+    min-width: 300px;
+    transition: all 0.3s;
+    box-shadow: 0 2px 8px rgba(99, 173, 107, 0.2);
+}
+
+.search-input::placeholder {
+    color: var(--text-light);
+    opacity: 0.8;
+}
+
+.search-input:hover {
+    border-color: var(--primary-dark);
+    box-shadow: 0 3px 12px rgba(99, 173, 107, 0.3);
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(99, 173, 107, 0.3), 0 3px 12px rgba(99, 173, 107, 0.3);
+    background: var(--card-bg);
+}
+
+.search-clear {
+    position: absolute;
+    right: 0.75rem;
+    background: var(--danger-color);
+    border: none;
+    color: white;
+    cursor: pointer;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.7rem;
+    line-height: 1;
+    border-radius: 50%;
+    transition: all 0.2s;
+    font-weight: bold;
+}
+
+.search-clear:hover {
+    background: #9a2e2e;
+    transform: scale(1.1);
+}
+
 .view-toggle {
     display: flex;
     gap: 0.5rem;
@@ -131,7 +186,7 @@ body {
 .btn-small {
     padding: 0.5rem 1rem;
     font-size: 0.875rem;
-    background: rgb(25, 44, 27);
+    background: rgb(99, 173, 107);
     color: white;
     border: none;
     border-radius: 4px;
@@ -145,9 +200,19 @@ body {
 }
 
 .btn-small.active {
-    background-color: rgb(55, 100, 58);
+    background-color: var(--primary-color);
     color: white;
-    font-weight: 600;
+}
+
+.btn-small.inactive {
+    background-color: var(--card-bg);
+    color: white;
+    border: 1px solid var(--border-color);
+}
+
+.btn-small.inactive:hover {
+    background-color: var(--secondary-color);
+    color: var(--text-color);
 }
 
 /* Auth Pages */
@@ -319,7 +384,7 @@ body {
 }
 
 .btn-danger {
-    background-color: var(--primary-color);
+    background-color: rgb(99, 173, 107);
     color: white;
 }
 
@@ -328,11 +393,30 @@ body {
     color: white
 }
 
+.btn-success {
+    background-color: var(--success-color);
+    color: white;
+}
+
+.btn-success:hover {
+    background-color: #27ae60;
+}
+
 .list-item-status {
     padding: 0.25rem 0.75rem;
     border-radius: 12px;
     font-size: 0.875rem;
     font-weight: 500;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    margin-left: 0.5rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    vertical-align: middle;
 }
 
 .status-pending {
@@ -406,6 +490,7 @@ body {
     border-radius: 8px;
     max-width: 500px;
     width: 100%;
+    position: relative;
   }
   
 

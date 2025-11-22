@@ -78,10 +78,22 @@ export const initializeDatabase = async (): Promise<void> => {
       end_time DATETIME NOT NULL,
       organizer_id INTEGER NOT NULL,
       category TEXT,
+      status TEXT DEFAULT 'pending',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (organizer_id) REFERENCES users(id)
     )
   `);
+
+  // Add status column if it doesn't exist (for existing databases)
+  try {
+    await run(database, `ALTER TABLE events ADD COLUMN status TEXT DEFAULT 'pending'`);
+    console.log('Added status column to events table');
+  } catch (err: any) {
+    // Column might already exist
+    if (!err.message.includes('duplicate column')) {
+      console.error('Error adding status column:', err);
+    }
+  }
 
   // --- MAINTENANCE REQUESTS TABLE ---
   await run(database, `

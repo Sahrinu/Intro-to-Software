@@ -8,6 +8,7 @@ const Events = () => {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [clickPopupDay, setClickPopupDay] = useState<number | null>(null);
   const [showClickPopup, setShowClickPopup] = useState(false);
@@ -105,9 +106,30 @@ const Events = () => {
     }
   };
 
+  const handleApprove = async (id: number) => {
+    try {
+      await eventsAPI.approve(id);
+      await loadEvents();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  const handleReject = async (id: number) => {
+    if (window.confirm('Are you sure you want to reject this event request?')) {
+      try {
+        await eventsAPI.reject(id);
+        await loadEvents();
+      } catch (err: any) {
+        setError(err.message);
+      }
+    }
+  };
+
   const closeModal = () => {
     setShowModal(false);
     setEditingId(null);
+    setError('');
     setFormData({
       title: '',
       description: '',
@@ -117,6 +139,17 @@ const Events = () => {
       category: '',
     });
   };
+
+  // Filter events based on search query (title, location, organizer only)
+  const filteredEvents = events.filter(event => {
+    if (!searchQuery.trim()) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      event.title.toLowerCase().includes(query) ||
+      (event.location && event.location.toLowerCase().includes(query)) ||
+      (event.organizer_name && event.organizer_name.toLowerCase().includes(query))
+    );
+  });
 
   const getDaysInMonth = (date: Date) => {
     return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
@@ -255,15 +288,33 @@ const Events = () => {
       <div className="page-header">
         <h2>Events & Scheduling</h2>
         <div className="header-actions">
+          <div className="search-group">
+            <input
+              type="text"
+              placeholder="Search events..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="search-input"
+            />
+            {searchQuery && (
+              <button
+                className="search-clear"
+                onClick={() => setSearchQuery('')}
+                title="Clear search"
+              >
+                ✕
+              </button>
+            )}
+          </div>
           <div className="view-toggle">
             <button
-              className={`btn btn-small ${viewMode === 'list' ? 'active' : ''}`}
+              className={`btn btn-small ${viewMode === 'list' ? 'active' : 'inactive'}`}
               onClick={() => setViewMode('list')}
             >
               📋 List
             </button>
             <button
-              className={`btn btn-small ${viewMode === 'calendar' ? 'active' : ''}`}
+              className={`btn btn-small ${viewMode === 'calendar' ? 'active' : 'inactive'}`}
               onClick={() => setViewMode('calendar')}
             >
               📅 Calendar
@@ -275,36 +326,67 @@ const Events = () => {
         </div>
       </div>
 
-      {error && <div className="error">{error}</div>}
-
       {loading ? (
         <div className="loading">Loading...</div>
       ) : viewMode === 'calendar' ? (
         renderCalendar()
-      ) : events.length === 0 ? (
-        <p className="loading">No events found.</p>
+      ) : filteredEvents.length === 0 ? (
+        <p className="loading">{searchQuery ? 'No events match your search.' : 'No events found.'}</p>
       ) : (
         <div className="list-container">
-          {events.map((event) => (
+          {filteredEvents.map((event) => (
             <div key={event.id} className="list-item">
               <div className="list-item-header">
-                <div className="list-item-title">{event.title}</div>
-                {user && (event.organizer_id === user.id || user.role === 'admin') && (
+                <div className="list-item-title">
+                  {event.title}
+                  {event.status && (
+                    <span className={`status-badge status-${event.status}`}>
+                      {event.status === 'pending' ? '⏳ Pending' : 
+                       event.status === 'approved' ? '✓ Approved' : 
+                       '✗ Rejected'}
+                    </span>
+                  )}
+                </div>
+                {user && (
                   <div className="list-item-actions">
-                    <button
-                      className="btn btn-small"
-                      onClick={() => handleEdit(event)}
-                      title="Edit event"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      className="btn btn-small btn-danger"
-                      onClick={() => handleDelete(event.id)}
-                      title="Delete event"
-                    >
-                      Delete
-                    </button>
+                    {/* Admin sees approve/reject for pending events */}
+                    {user.role === 'admin' && event.status === 'pending' && (
+                      <>
+                        <button
+                          className="btn btn-small btn-success"
+                          onClick={() => handleApprove(event.id)}
+                          title="Approve event"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          className="btn btn-small btn-danger"
+                          onClick={() => handleReject(event.id)}
+                          title="Reject event"
+                        >
+                          Reject
+                        </button>
+                      </>
+                    )}
+                    {/* Organizer can edit/delete their own events (if not rejected) */}
+                    {event.organizer_id === user.id && event.status !== 'rejected' && (
+                      <>
+                        <button
+                          className="btn btn-small"
+                          onClick={() => handleEdit(event)}
+                          title="Edit event"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          className="btn btn-small btn-danger"
+                          onClick={() => handleDelete(event.id)}
+                          title="Delete event"
+                        >
+                          Delete
+                        </button>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -336,6 +418,7 @@ const Events = () => {
               &times;
             </span>
             <h3>{editingId ? 'Edit Event' : 'Create New Event'}</h3>
+            {error && <div className="error" style={{ marginBottom: '1rem' }}>{error}</div>}
             <form onSubmit={handleSubmit}>
               <div className="form-group">
                 <label htmlFor="eventTitle">Title</label>
@@ -362,14 +445,26 @@ const Events = () => {
               </div>
               <div className="form-group">
                 <label htmlFor="eventLocation">Location</label>
-                <input
-                  type="text"
+                <select
                   id="eventLocation"
                   value={formData.location}
                   onChange={(e) =>
                     setFormData({ ...formData, location: e.target.value })
                   }
-                />
+                >
+                  <option value="">Select a location</option>
+                  <option value="Auditorium">Auditorium</option>
+                  <option value="Classroom">Classroom</option>
+                  <option value="Student Hub">Student Hub</option>
+                  <option value="Sport Hall">Sport Hall</option>
+                  <option value="Football Court">Football Court</option>
+                  <option value="Library">Library</option>
+                  <option value="Cafeteria">Cafeteria</option>
+                  <option value="Conference Room">Conference Room</option>
+                  <option value="Lecture Hall">Lecture Hall</option>
+                  <option value="Computer Lab">Computer Lab</option>
+                  <option value="Outdoor Area">Outdoor Area</option>
+                </select>
               </div>
               <div className="form-group">
                 <label htmlFor="eventStartTime">Start Time</label>

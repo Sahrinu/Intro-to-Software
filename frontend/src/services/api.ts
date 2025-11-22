@@ -34,6 +34,7 @@ export interface Event {
   end_time: string;
   organizer_id: number;
   category?: string;
+  status?: 'pending' | 'approved' | 'rejected';
   created_at: string;
   organizer_name?: string;
 }
@@ -158,6 +159,14 @@ export const eventsAPI = {
   delete: (id: number): Promise<void> =>
     apiRequest<void>(`/events/${id}`, {
       method: 'DELETE',
+    }),
+  approve: (id: number): Promise<Event> =>
+    apiRequest<Event>(`/events/${id}/approve`, {
+      method: 'PATCH',
+    }),
+  reject: (id: number): Promise<Event> =>
+    apiRequest<Event>(`/events/${id}/reject`, {
+      method: 'PATCH',
     }),
 };
 
