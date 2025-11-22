@@ -1,25 +1,25 @@
-import express, { Request, Response } from 'express';
-import { body, validationResult } from 'express-validator';
-import { authenticate } from '../middleware/auth.middleware';
-import OpenAI from 'openai';
+import express, { Request, Response } from "express";
+import { body, validationResult } from "express-validator";
+import { authenticate } from "../middleware/auth.middleware";
+import OpenAI from "openai";
 
 const router = express.Router();
 
-// Initialize OpenAI client (can use mock if API key not provided)
+// Initialize OpenAI client
 const getOpenAIClient = () => {
   const apiKey = process.env.OPENAI_API_KEY;
-  if (apiKey && apiKey !== 'your-openai-api-key-here') {
-    return new OpenAI({ apiKey });
+  if (!apiKey) {
+    console.error("Missing OPENAI_API_KEY in environment variables");
+    return null;
   }
-  return null;
+  return new OpenAI({ apiKey });
 };
 
 // AI Assistant chat endpoint
-router.post('/chat',
+router.post(
+  "/chat",
   authenticate,
-  [
-    body('message').trim().notEmpty()
-  ],
+  [body("message").trim().notEmpty()],
   async (req: Request, res: Response) => {
     try {
       const errors = validationResult(req);
@@ -30,7 +30,6 @@ router.post('/chat',
       const { message } = req.body;
       const openai = getOpenAIClient();
 
-      // System prompt for campus assistant
       const systemPrompt = `You are a helpful AI assistant for a sustainable campus management system. 
 You help users with:
 - Booking campus resources (rooms, equipment, facilities)
@@ -42,68 +41,77 @@ You help users with:
 Be friendly, concise, and helpful. If you don't know something, suggest contacting campus administration.`;
 
       if (openai) {
-        // Real OpenAI API call
         try {
           const completion = await openai.chat.completions.create({
-            model: 'gpt-3.5-turbo',
+            model: "gpt-4o-mini",
             messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: message }
+              { role: "system", content: systemPrompt },
+              { role: "user", content: message },
             ],
             max_tokens: 500,
-            temperature: 0.7
+            temperature: 0.7,
           });
 
-          const response = completion.choices[0]?.message?.content || 'Sorry, I could not generate a response.';
-          res.json({ response, source: 'openai' });
+          const responseText =
+            completion.choices[0]?.message?.content ||
+            "Sorry, I could not generate a response.";
+
+          res.json({ response: responseText, source: "openai" });
         } catch (error: any) {
-          console.error('OpenAI API error:', error);
-          // Fallback to mock response
+          console.error("OpenAI API error:", error);
           res.json({
             response: generateMockResponse(message),
-            source: 'mock'
+            source: "mock",
           });
         }
       } else {
-        // Mock response when OpenAI API key is not configured
         res.json({
           response: generateMockResponse(message),
-          source: 'mock'
+          source: "mock",
         });
       }
     } catch (error: any) {
+      console.error("Chat endpoint error:", error);
       res.status(500).json({ error: error.message });
     }
   }
 );
 
-// Mock response generator for when OpenAI is not available
+router.get("/test-openai", async (req: Request, res: Response) => {
+  try {
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: "Say hello from GPT" }],
+    });
+    res.send(completion.choices[0].message.content);
+  } catch (err: any) {
+    console.error("OpenAI test error:", err.message);
+    res.status(500).send("OpenAI test failed: " + err.message);
+  }
+});
+
+
 function generateMockResponse(message: string): string {
-  const lowerMessage = message.toLowerCase();
+  const lower = message.toLowerCase();
 
-  if (lowerMessage.includes('book') || lowerMessage.includes('booking') || lowerMessage.includes('reserve')) {
-    return 'To book a resource, go to the Booking section and select the resource type, name, and time slot. You can book rooms, equipment, or facilities. Make sure to check availability first!';
+  if (lower.includes("book") || lower.includes("reserve")) {
+    return "To book a resource, go to the Booking section and select the resource type, name, and time slot.";
   }
 
-  if (lowerMessage.includes('event') || lowerMessage.includes('schedule')) {
-    return 'You can view all campus events in the Events section. To create a new event, click "Create Event" and fill in the details including title, date, time, and location.';
+  if (lower.includes("event") || lower.includes("schedule")) {
+    return "You can view all campus events in the Events section or create one under 'Create Event'.";
   }
 
-  if (lowerMessage.includes('maintenance') || lowerMessage.includes('repair') || lowerMessage.includes('broken')) {
-    return 'To submit a maintenance request, go to the Maintenance section and click "New Request". Provide details about the issue, location, and priority level. Our maintenance team will review it promptly.';
+  if (lower.includes("maintenance") || lower.includes("repair")) {
+    return "To submit a maintenance request, go to the Maintenance section and click 'New Request'.";
   }
 
-  if (lowerMessage.includes('sustainability') || lowerMessage.includes('green') || lowerMessage.includes('eco')) {
-    return 'Our campus is committed to sustainability! We have recycling programs, energy-efficient buildings, and green spaces. You can contribute by using resources responsibly and participating in campus sustainability events.';
+  if (lower.includes("sustainability") || lower.includes("green")) {
+    return "Our campus promotes sustainability. Join recycling and energy-saving initiatives.";
   }
 
-  if (lowerMessage.includes('help') || lowerMessage.includes('how')) {
-    return 'I can help you with bookings, events, maintenance requests, and general campus information. What would you like to know more about?';
-  }
-
-  return 'I understand you\'re asking about: "' + message + '". For specific help with bookings, events, or maintenance requests, please use the respective sections of the application. For other questions, feel free to contact campus administration.';
+  return `I understand you're asking about "${message}". Please specify if it’s about bookings, events, or maintenance.`;
 }
 
 export default router;
-
-

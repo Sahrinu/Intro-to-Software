@@ -38,7 +38,10 @@ const Assistant = () => {
     } catch (error: any) {
       setMessages((prev) => [
         ...prev,
-        { role: 'assistant', content: `Sorry, I encountered an error: ${error.message}` },
+        {
+          role: 'assistant',
+          content: `Sorry, I encountered an error: ${error.message}`,
+        },
       ]);
     } finally {
       setLoading(false);
@@ -51,6 +54,7 @@ const Assistant = () => {
         <h2>AI Campus Assistant</h2>
         <p>Ask me anything about campus resources, bookings, events, or sustainability!</p>
       </div>
+
       <div className="assistant-container">
         <div className="chat-messages">
           {messages.length === 0 && (
@@ -59,6 +63,7 @@ const Assistant = () => {
               <div>Hello! How can I help you today?</div>
             </div>
           )}
+
           {messages.map((msg, idx) => (
             <div key={idx} className={`chat-message ${msg.role}`}>
               <div className="chat-message-header">
@@ -67,16 +72,28 @@ const Assistant = () => {
               <div>{msg.content}</div>
             </div>
           ))}
+
           {loading && (
             <div className="chat-message assistant">
               <div className="chat-message-header">AI Assistant</div>
               <div>Thinking...</div>
             </div>
           )}
+
           <div ref={messagesEndRef} />
         </div>
+
+        {/* Input container and form */}
         <div className="chat-input-container">
-          <form onSubmit={handleSend}>
+          <form
+            onSubmit={handleSend}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              width: '100%',
+              gap: '0.75rem',
+            }}
+          >
             <input
               type="text"
               className="chat-input"
@@ -85,7 +102,11 @@ const Assistant = () => {
               onChange={(e) => setInput(e.target.value)}
               disabled={loading}
             />
-            <button type="submit" className="btn btn-primary" disabled={loading}>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={loading}
+            >
               Send
             </button>
           </form>
@@ -96,5 +117,3 @@ const Assistant = () => {
 };
 
 export default Assistant;
-
-

@@ -907,3 +907,46 @@ body {
     flex-wrap: wrap;
     gap: 1rem;
 }
+/* --- AI Assistant Input Bar Improvements --- */
+.chat-input-container {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.5rem 0;
+  }
+  
+  .chat-input {
+    flex: 1;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.75rem 1rem;
+    font-size: 1rem;
+    border: 1px solid rgba(99, 173, 107, 0.25);
+    border-radius: 6px;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    transition: border-color 0.3s, box-shadow 0.3s;
+  }  
+  
+  .chat-input:focus {
+    outline: none;
+    border-color: var();
+    box-shadow: 0 0 0 3px rgba(99, 173, 107, 0.25);
+  }
+  
+  .btn.btn-primary {
+    padding: 0.75rem 1.25rem;
+    font-size: 1rem;
+    border-radius: 6px;
+    border: none;
+    background-color: var(--primary-color);
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.3s, transform 0.2s;
+  }
+  
+  .btn.btn-primary:hover {
+    background-color: var(--primary-dark);
+    transform: translateY(-1px);
+  }  

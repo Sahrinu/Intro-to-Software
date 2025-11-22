@@ -10,22 +10,7 @@ import eventRoutes from './routes/event.routes';
 import maintenanceRoutes from './routes/maintenance.routes';
 import assistantRoutes from './routes/assistant.routes';
 
-// Load environment variables
-// Prefer `ai.env` (used in this workspace) but fall back to .env if present
-const aiEnvPath = path.resolve(process.cwd(), 'ai.env');
-const dotEnvPath = path.resolve(process.cwd(), '.env');
-try {
-  const loaded = dotenv.config({ path: aiEnvPath });
-  if (loaded.error) {
-    // Try default .env if ai.env is not present
-    dotenv.config();
-  } else {
-    console.log(`Loaded environment from ${aiEnvPath}`);
-  }
-} catch (err) {
-  // Fallback to default .env
-  dotenv.config();
-}
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
