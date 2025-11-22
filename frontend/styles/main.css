@@ -46,8 +46,7 @@ body {
 .nav-container {
     max-width: 1500px;
     margin: 0 auto;
-    margin-left: 5rem;
-    padding: 1rem 2rem;
+    padding: 1rem 3rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -56,12 +55,53 @@ body {
 .nav-brand h1 {
     color: var(--primary-color);
     font-size: 1.5rem;
+    flex-shrink: 0;
+}
+
+.nav-center {
+    display: flex;
+    gap: 1.5rem;
+    align-items: center;
+    margin-left: 3rem;
+}
+
+.nav-center a {
+    text-decoration: none;
+    color: var(--text-color);
+    font-weight: 500;
+    transition: color 0.3s;
+    cursor: pointer;
+}
+
+.nav-center a:hover {
+    color: var(--primary-color);
+}
+
+.nav-right {
+    display: flex;
+    gap: 1.5rem;
+    align-items: center;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+.nav-right a {
+    text-decoration: none;
+    color: var(--text-color);
+    font-weight: 500;
+    transition: color 0.3s;
+    cursor: pointer;
+}
+
+.nav-right a:hover {
+    color: var(--primary-color);
 }
 
 .nav-links {
     display: flex;
     gap: 1.5rem;
     align-items: center;
+    margin-left: auto;
 }
 
 .nav-links a {
@@ -74,6 +114,10 @@ body {
 
 .nav-links a:hover {
     color: var(--primary-color);
+}
+
+.nav-links a:last-child {
+    margin-left: 1rem;
 }
 
 /* Main Content */

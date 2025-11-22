@@ -16,18 +16,20 @@ const Navbar = () => {
         <div className="nav-brand">
           <h1>Smart Campus</h1>
         </div>
-        <div className="nav-links">
+        {user && (
+          <div className="nav-center">
+            <Link to="/dashboard">Dashboard</Link>
+            <Link to="/bookings">Bookings</Link>
+            <Link to="/events">Events</Link>
+            <Link to="/maintenance">Maintenance</Link>
+            <Link to="/assistant">AI Assistant</Link>
+          </div>
+        )}
+        <div className="nav-right">
           {user ? (
-            <>
-              <Link to="/dashboard">Dashboard</Link>
-              <Link to="/bookings">Bookings</Link>
-              <Link to="/events">Events</Link>
-              <Link to="/maintenance">Maintenance</Link>
-              <Link to="/assistant">AI Assistant</Link>
-              <a href="#" onClick={(e) => { e.preventDefault(); handleLogout(); }}>
-                Logout
-              </a>
-            </>
+            <a href="#" onClick={(e) => { e.preventDefault(); handleLogout(); }}>
+              Logout
+            </a>
           ) : (
             <>
               <Link to="/login">Login</Link>
