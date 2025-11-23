@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { JwtPayload, UserRole } from '../types';
+const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
+
 
 declare global {
   namespace Express {
@@ -9,6 +11,18 @@ declare global {
     }
   }
 }
+
+export function optionalAuth(req: any, _res: any, next: any) {
+  const auth = req.headers?.authorization;
+  if (!auth) return next();
+  const token = auth.replace(/^Bearer\s+/i, "");
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    req.user = payload as any; // { userId, role, ... }
+  } catch { /* ignore bad/expired token */ }
+  next();
+}
+
 // Middleware to authenticate JWT token to check if user role matches the allowed roles
 export const authenticate = (req: Request, res: Response, next: NextFunction): void => {
   try {
