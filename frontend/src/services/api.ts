@@ -101,39 +101,81 @@ export const authAPI = {
     }),
 };
 
+
+async function http<T>(url: string, opts?: RequestInit): Promise<T> {
+  const res = await fetch(url, {
+    headers: { 'Content-Type': 'application/json', ...(opts?.headers || {}) },
+    ...opts,
+  });
+  if (!res.ok) {
+    let body: any = null;
+    try { body = await res.json(); } catch {}
+    const err: any = new Error(body?.error || res.statusText);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+}
+
+// Our unified Booking API — matches your backend routes
 export const bookingsAPI = {
-  getAll: (): Promise<Booking[]> => apiRequest<Booking[]>('/bookings'),
-  getById: (id: number): Promise<Booking> => apiRequest<Booking>(`/bookings/${id}`),
-  create: (data: {
+  // Get all bookings (admin sees all, normal users see their own)
+  getAll: () => http<any[]>('/api/bookings'),
+
+  // Get a single booking
+  getById: (id: number) => http<any>(`/api/bookings/${id}`),
+
+  // Create a booking
+  create: (payload: {
     resource_type: string;
     resource_name: string;
     start_time: string;
     end_time: string;
-  }): Promise<Booking> =>
-    apiRequest<Booking>('/bookings', {
+    reason?: string;
+  }) =>
+    http('/api/bookings', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     }),
-  update: (id: number, data: {
-    resource_type: string;
-    resource_name: string;
-    start_time: string;
-    end_time: string;
-  }): Promise<Booking> =>
-    apiRequest<Booking>(`/bookings/${id}`, {
+
+  // Update an existing booking
+  update: (id: number, payload: any) =>
+    http(`/api/bookings/${id}`, {
       method: 'PUT',
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     }),
-  updateStatus: (id: number, status: string): Promise<Booking> =>
-    apiRequest<Booking>(`/bookings/${id}/status`, {
+
+  // Delete a booking
+  delete: (id: number) =>
+    http(`/api/bookings/${id}`, { method: 'DELETE' }),
+
+  // Approve / reject / complete bookings (Admin/Staff only)
+  setStatus: (
+    id: number,
+    status: 'pending' | 'approved' | 'rejected' | 'completed'
+  ) =>
+    http(`/api/bookings/${id}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ status }),
     }),
-  delete: (id: number): Promise<void> =>
-    apiRequest<void>(`/bookings/${id}`, {
-      method: 'DELETE',
-    }),
+
+  // Check availability for a resource/time window
+  getAvailability: (
+    resourceName: string,
+    start: string,
+    end: string
+  ) =>
+    http<{
+      resource_name: string;
+      window: { start: string; end: string };
+      busy: Array<{ id: number; start: string; end: string; status: string }>;
+    }>(
+      `/api/bookings/availability?resource_name=${encodeURIComponent(
+        resourceName
+      )}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`
+    ),
 };
+
 
 export const eventsAPI = {
   getAll: (): Promise<Event[]> => apiRequest<Event[]>('/events'),
@@ -200,4 +242,3 @@ export const assistantAPI = {
       body: JSON.stringify({ message }),
     }),
 };
-
