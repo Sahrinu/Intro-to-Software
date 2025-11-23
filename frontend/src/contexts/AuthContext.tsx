@@ -5,8 +5,8 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<User>; // already fixed
-  register: (name: string, email: string, password: string, role: string) => Promise<void>; // ✅ fix here
+  login: (email: string, password: string) => Promise<User>;
+  register: (name: string, email: string, password: string, role: string) => Promise<void>; 
   logout: () => void;
 }
 

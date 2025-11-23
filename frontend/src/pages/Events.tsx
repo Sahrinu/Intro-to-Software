@@ -142,6 +142,13 @@ const Events = () => {
 
   // Filter events based on search query (title, location, organizer only)
   const filteredEvents = events.filter(event => {
+    // Filter out rejected events for non-admins and non-creators
+    if (event.status === 'rejected') {
+      if (!user || (user.role !== 'admin' && event.organizer_id !== user.id)) {
+        return false;
+      }
+    }
+    
     if (!searchQuery.trim()) return true;
     const query = searchQuery.toLowerCase();
     return (
@@ -149,6 +156,23 @@ const Events = () => {
       (event.location && event.location.toLowerCase().includes(query)) ||
       (event.organizer_name && event.organizer_name.toLowerCase().includes(query))
     );
+  }).sort((a, b) => {
+    const now = new Date();
+    const aStart = new Date(a.start_time);
+    const aEnd = new Date(a.end_time);
+    const bStart = new Date(b.start_time);
+    const bEnd = new Date(b.end_time);
+
+    // Check if events are in progress
+    const aInProgress = aStart <= now && aEnd >= now;
+    const bInProgress = bStart <= now && bEnd >= now;
+
+    // In-progress events come first
+    if (aInProgress && !bInProgress) return -1;
+    if (!aInProgress && bInProgress) return 1;
+
+    // If both in progress or both not in progress, sort by start time (earliest first)
+    return aStart.getTime() - bStart.getTime();
   });
 
   const getDaysInMonth = (date: Date) => {
@@ -339,7 +363,7 @@ const Events = () => {
               <div className="list-item-header">
                 <div className="list-item-title">
                   {event.title}
-                  {event.status && (
+                  {event.status && user && (user.role === 'admin' || event.organizer_id === user.id) && (
                     <span className={`status-badge status-${event.status}`}>
                       {event.status === 'pending' ? '⏳ Pending' : 
                        event.status === 'approved' ? '✓ Approved' : 
