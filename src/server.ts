@@ -20,7 +20,10 @@ console.log('Running from:', process.cwd());
 console.log('Expecting database at:', path.resolve(process.cwd(), 'campus_management.db'));
 
 // --- Middleware ---
-app.use(cors());
+app.use(cors({
+  origin: true, // or "http://localhost:8080"
+  allowedHeaders: ["Content-Type", "Authorization"], // <-- important
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
