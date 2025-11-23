@@ -1,6 +1,16 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
+type AppRole = 'admin' | 'faculty' | 'student' | 'staff' | 'maintenance';
+
+const navLinks: Array<{ to: string; label: string; roles: AppRole[] }> = [
+  { to: '/dashboard', label: 'Dashboard', roles: ['admin', 'faculty', 'student', 'staff', 'maintenance'] },
+  { to: '/bookings', label: 'Bookings', roles: ['admin', 'faculty', 'student', 'staff'] },
+  { to: '/events', label: 'Events', roles: ['admin', 'faculty', 'student', 'staff'] },
+  { to: '/maintenance', label: 'Maintenance', roles: ['admin', 'faculty', 'student', 'staff', 'maintenance'] },
+  { to: '/assistant', label: 'AI Assistant', roles: ['admin', 'faculty', 'student', 'staff', 'maintenance'] },
+];
+
 const Navbar = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -18,16 +28,24 @@ const Navbar = () => {
         </div>
         {user && (
           <div className="nav-center">
-            <Link to="/dashboard">Dashboard</Link>
-            <Link to="/bookings">Bookings</Link>
-            <Link to="/events">Events</Link>
-            <Link to="/maintenance">Maintenance</Link>
-            <Link to="/assistant">AI Assistant</Link>
+            {navLinks
+              .filter((link) => link.roles.includes(user.role as AppRole))
+              .map((link) => (
+                <Link key={link.to} to={link.to}>
+                  {link.label}
+                </Link>
+              ))}
           </div>
         )}
         <div className="nav-right">
           {user ? (
-            <a href="#" onClick={(e) => { e.preventDefault(); handleLogout(); }}>
+            <a
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                handleLogout();
+              }}
+            >
               Logout
             </a>
           ) : (
@@ -43,5 +61,3 @@ const Navbar = () => {
 };
 
 export default Navbar;
-
-

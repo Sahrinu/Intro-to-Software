@@ -9,9 +9,31 @@ import Events from './pages/Events';
 import Maintenance from './pages/Maintenance';
 import Assistant from './pages/Assistant';
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
-  return user ? <>{children}</> : <Navigate to="/login" />;
+type AppRole = 'admin' | 'faculty' | 'student' | 'staff' | 'maintenance';
+
+const generalRoles: AppRole[] = ['admin', 'faculty', 'student', 'staff'];
+
+interface ProtectedRouteProps {
+  children: React.ReactNode;
+  allowedRoles?: AppRole[];
+}
+
+function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return <div className="loading">Loading...</div>;
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (allowedRoles && !allowedRoles.includes(user.role as AppRole)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return <>{children}</>;
 }
 
 function App() {
@@ -35,7 +57,7 @@ function App() {
               <Route
                 path="/bookings"
                 element={
-                  <ProtectedRoute>
+                  <ProtectedRoute allowedRoles={generalRoles}>
                     <Bookings />
                   </ProtectedRoute>
                 }
@@ -43,7 +65,7 @@ function App() {
               <Route
                 path="/events"
                 element={
-                  <ProtectedRoute>
+                  <ProtectedRoute allowedRoles={generalRoles}>
                     <Events />
                   </ProtectedRoute>
                 }
@@ -74,5 +96,4 @@ function App() {
 }
 
 export default App;
-
 

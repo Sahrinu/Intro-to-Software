@@ -75,6 +75,7 @@ const Register = () => {
               <option value="student">Student</option>
               <option value="faculty">Faculty</option>
               <option value="staff">Staff</option>
+              <option value="maintenance">Maintenance</option>
             </select>
           </div>
           <button type="submit" className="btn btn-primary" disabled={loading}>
@@ -90,5 +91,4 @@ const Register = () => {
 };
 
 export default Register;
-
 

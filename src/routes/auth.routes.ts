@@ -13,7 +13,9 @@ router.post('/register',
     body('email').isEmail().normalizeEmail(),
     body('password').isLength({ min: 6 }),
     body('name').trim().notEmpty(),
-    body('role').optional().isIn(['student', 'faculty', 'staff'])
+    body('role')
+      .optional()
+      .isIn([UserRole.STUDENT, UserRole.FACULTY, UserRole.STAFF, UserRole.MAINTENANCE])
   ],
   async (req: Request, res: Response) => {
     try {
@@ -102,5 +104,4 @@ router.post('/login',
 );
 
 export default router;
-
 
