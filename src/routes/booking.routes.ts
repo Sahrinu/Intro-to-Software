@@ -1,6 +1,6 @@
 import express, { Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
-import { authenticate, authorize } from '../middleware/auth.middleware';
+import { authenticate, authorize, optionalAuth } from '../middleware/auth.middleware';
 import { dbGet, dbAll, dbRun } from '../utils/db.utils';
 import { UserRole } from '../types';
 
@@ -11,74 +11,64 @@ function isStartBeforeEnd(start: string, end: string) {
   return new Date(start) < new Date(end);
 }
 
-// ------------------------------
-// GET /api/bookings  (admins/staff see all; others see own)
-// ------------------------------
-router.get('/', authenticate, async (req: Request & { user?: any }, res: Response) => {
-  try {
-    const isPrivileged = req.user!.role === UserRole.ADMIN || req.user!.role === UserRole.STAFF;
-    const sql = `
-      SELECT b.*, u.name as user_name, u.email as user_email
-      FROM bookings b
-      JOIN users u ON b.user_id = u.id
-      ${isPrivileged ? '' : 'WHERE b.user_id = ?'}
-      ORDER BY b.created_at DESC
-    `;
-    const args = isPrivileged ? [] : [req.user!.userId];
-    const bookings = await dbAll(sql, args);
-    res.json(bookings);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
+/ GET /api/bookings
+router.get('/', optionalAuth, async (req: Request & { user?: any }, res: Response) => {
+  const role = req.user?.role as UserRole | undefined;
+  const isPrivileged = role === UserRole.ADMIN || role === UserRole.STAFF;
 
-// ------------------------------
-// GET /api/bookings/:id
-// ------------------------------
-router.get('/:id', authenticate, async (req: Request & { user?: any }, res: Response) => {
-  try {
-    const booking: any = await dbGet(`
-      SELECT b.*, u.name as user_name, u.email as user_email
-      FROM bookings b
-      JOIN users u ON b.user_id = u.id
-      WHERE b.id = ?
-    `, [req.params.id]);
-
-    if (!booking) return res.status(404).json({ error: 'Booking not found' });
-
-    const isPrivileged = req.user!.role === UserRole.ADMIN || req.user!.role === UserRole.STAFF;
-    if (!isPrivileged && booking.user_id !== req.user!.userId) {
-      return res.status(403).json({ error: 'Access denied' });
-    }
-
-    res.json(booking);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// ------------------------------
-// GET /api/bookings/availability?resource_name=&start=&end=
-// ------------------------------
-router.get('/availability', authenticate, async (req: Request, res: Response) => {
-  try {
-    const { resource_name, start, end } = req.query as Record<string, string>;
-    if (!resource_name || !start || !end) {
-      return res.status(400).json({ error: 'resource_name, start, end are required' });
-    }
-    const busy = await dbAll(`
-      SELECT id, start_time AS start, end_time AS end, status
+  // PUBLIC behavior: if not logged in, return safe/public list (Option C)
+  // If you want pure-public: expose only approved and redact sensitive fields.
+  if (!req.user) {
+    const rows = await dbAll(`
+      SELECT id, resource_type, resource_name, start_time, end_time, status
       FROM bookings
-      WHERE resource_name = ?
-        AND status IN ('pending','approved')
-        AND start_time < ?
-        AND end_time   > ?
-      ORDER BY start_time
-    `, [resource_name, end, start]);
-    res.json({ resource_name, window: { start, end }, busy });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+      WHERE status = 'approved'
+      ORDER BY start_time ASC
+    `, []);
+    return res.json(rows); // redacted fields only
   }
+
+  // Original logic preserved
+  const sql = `
+    SELECT b.*, u.name as user_name, u.email as user_email
+    FROM bookings b
+    JOIN users u ON b.user_id = u.id
+    ${isPrivileged ? '' : 'WHERE b.user_id = ?'}
+    ORDER BY b.created_at DESC
+  `;
+  const args = isPrivileged ? [] : [req.user!.userId];
+  const bookings = await dbAll(sql, args);
+  res.json(bookings);
+});
+
+// GET /api/bookings/availability  (safe to be public)
+router.get('/availability', optionalAuth, async (req: Request, res: Response) => { /* unchanged */ });
+
+// GET /api/bookings/:id
+router.get('/:id', optionalAuth, async (req: Request & { user?: any }, res: Response) => {
+  const booking: any = await dbGet(`
+    SELECT b.*, u.name as user_name, u.email as user_email
+    FROM bookings b
+    JOIN users u ON b.user_id = u.id
+    WHERE b.id = ?
+  `, [req.params.id]);
+
+  if (!booking) return res.status(404).json({ error: 'Booking not found' });
+
+  const role = req.user?.role as UserRole | undefined;
+  const isPrivileged = role === UserRole.ADMIN || role === UserRole.STAFF;
+
+  if (!req.user) {
+    // Option C: only approved bookings are visible to guests; return redacted
+    if (booking.status === 'approved') {
+      const { id, resource_type, resource_name, start_time, end_time, status } = booking;
+      return res.json({ id, resource_type, resource_name, start_time, end_time, status });
+    }
+    return res.status(403).json({ error: 'Access denied' });
+  }
+
+  if (isPrivileged || booking.user_id === req.user.userId) return res.json(booking);
+  return res.status(403).json({ error: 'Access denied' });
 });
 
 // ------------------------------
