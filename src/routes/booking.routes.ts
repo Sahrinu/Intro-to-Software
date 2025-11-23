@@ -6,37 +6,35 @@ import { UserRole } from '../types';
 
 const router = express.Router();
 
-// Get all bookings
+// Helper: consistent overlap rule
+function isStartBeforeEnd(start: string, end: string) {
+  return new Date(start) < new Date(end);
+}
+
+// ------------------------------
+// GET /api/bookings  (admins/staff see all; others see own)
+// ------------------------------
 router.get('/', authenticate, async (req: Request & { user?: any }, res: Response) => {
   try {
-    let bookings;
-    
-    // Admins and staff can see all bookings
-    if (req.user!.role === UserRole.ADMIN || req.user!.role === UserRole.STAFF) {
-      bookings = await dbAll(`
-        SELECT b.*, u.name as user_name, u.email as user_email
-        FROM bookings b
-        JOIN users u ON b.user_id = u.id
-        ORDER BY b.created_at DESC
-      `);
-    } else {
-      // Users can only see their own bookings
-      bookings = await dbAll(`
-        SELECT b.*, u.name as user_name, u.email as user_email
-        FROM bookings b
-        JOIN users u ON b.user_id = u.id
-        WHERE b.user_id = ?
-        ORDER BY b.created_at DESC
-      `, [req.user!.userId]);
-    }
-
+    const isPrivileged = req.user!.role === UserRole.ADMIN || req.user!.role === UserRole.STAFF;
+    const sql = `
+      SELECT b.*, u.name as user_name, u.email as user_email
+      FROM bookings b
+      JOIN users u ON b.user_id = u.id
+      ${isPrivileged ? '' : 'WHERE b.user_id = ?'}
+      ORDER BY b.created_at DESC
+    `;
+    const args = isPrivileged ? [] : [req.user!.userId];
+    const bookings = await dbAll(sql, args);
     res.json(bookings);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// Get booking by ID
+// ------------------------------
+// GET /api/bookings/:id
+// ------------------------------
 router.get('/:id', authenticate, async (req: Request & { user?: any }, res: Response) => {
   try {
     const booking: any = await dbGet(`
@@ -46,14 +44,10 @@ router.get('/:id', authenticate, async (req: Request & { user?: any }, res: Resp
       WHERE b.id = ?
     `, [req.params.id]);
 
-    if (!booking) {
-      return res.status(404).json({ error: 'Booking not found' });
-    }
+    if (!booking) return res.status(404).json({ error: 'Booking not found' });
 
-    // Users can only see their own bookings unless admin/staff
-    if (req.user!.role !== UserRole.ADMIN && 
-        req.user!.role !== UserRole.STAFF && 
-        booking.user_id !== req.user!.userId) {
+    const isPrivileged = req.user!.role === UserRole.ADMIN || req.user!.role === UserRole.STAFF;
+    if (!isPrivileged && booking.user_id !== req.user!.userId) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -63,39 +57,69 @@ router.get('/:id', authenticate, async (req: Request & { user?: any }, res: Resp
   }
 });
 
-// Create booking
+// ------------------------------
+// GET /api/bookings/availability?resource_name=&start=&end=
+// ------------------------------
+router.get('/availability', authenticate, async (req: Request, res: Response) => {
+  try {
+    const { resource_name, start, end } = req.query as Record<string, string>;
+    if (!resource_name || !start || !end) {
+      return res.status(400).json({ error: 'resource_name, start, end are required' });
+    }
+    const busy = await dbAll(`
+      SELECT id, start_time AS start, end_time AS end, status
+      FROM bookings
+      WHERE resource_name = ?
+        AND status IN ('pending','approved')
+        AND start_time < ?
+        AND end_time   > ?
+      ORDER BY start_time
+    `, [resource_name, end, start]);
+    res.json({ resource_name, window: { start, end }, busy });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ------------------------------
+// POST /api/bookings (create)
+// ------------------------------
 router.post('/',
   authenticate,
   [
     body('resource_type').trim().notEmpty(),
     body('resource_name').trim().notEmpty(),
     body('start_time').isISO8601(),
-    body('end_time').isISO8601()
+    body('end_time').isISO8601(),
+    body('reason').optional().isString().isLength({ max: 500 })
   ],
   async (req: Request & { user?: any }, res: Response) => {
     try {
       const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
+      if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
+      const { resource_type, resource_name, start_time, end_time, reason } = req.body;
+      if (!isStartBeforeEnd(start_time, end_time)) {
+        return res.status(400).json({ error: 'start_time must be before end_time' });
       }
 
-      const { resource_type, resource_name, start_time, end_time } = req.body;
-
-      // Check for conflicts
+      // Proper conflict detection (pending/approved block)
       const conflicts = await dbAll(`
         SELECT id FROM bookings
-        WHERE resource_name = ? AND status != 'rejected'
-        AND ((start_time <= ? AND end_time > ?) OR (start_time < ? AND end_time >= ?))
-      `, [resource_name, start_time, start_time, end_time, end_time]);
+        WHERE resource_name = ?
+          AND status IN ('pending','approved')
+          AND start_time < ?
+          AND end_time   > ?
+      `, [resource_name, end_time, start_time]);
 
       if (conflicts.length > 0) {
         return res.status(409).json({ error: 'Time slot already booked' });
       }
 
       const result = await dbRun(
-        `INSERT INTO bookings (user_id, resource_type, resource_name, start_time, end_time, status)
-         VALUES (?, ?, ?, ?, ?, 'pending')`,
-        [req.user!.userId, resource_type, resource_name, start_time, end_time]
+        `INSERT INTO bookings (user_id, resource_type, resource_name, start_time, end_time, status, reason)
+         VALUES (?, ?, ?, ?, ?, 'pending', ?)`,
+        [req.user!.userId, resource_type, resource_name, start_time, end_time, reason ?? null]
       );
 
       const booking = await dbGet('SELECT * FROM bookings WHERE id = ?', [result.lastID]);
@@ -106,33 +130,33 @@ router.post('/',
   }
 );
 
-// Update booking (user or admin/staff only)
+// ------------------------------
+// PUT /api/bookings/:id (update)
+// ------------------------------
 router.put('/:id',
   authenticate,
   [
     body('resource_type').optional().trim().notEmpty(),
     body('resource_name').optional().trim().notEmpty(),
     body('start_time').optional().isISO8601(),
-    body('end_time').optional().isISO8601()
+    body('end_time').optional().isISO8601(),
+    body('reason').optional().isString().isLength({ max: 500 })
   ],
   async (req: Request & { user?: any }, res: Response) => {
     try {
       const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
-      }
+      if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
       const booking: any = await dbGet('SELECT * FROM bookings WHERE id = ?', [req.params.id]);
+      if (!booking) return res.status(404).json({ error: 'Booking not found' });
 
-      if (!booking) {
-        return res.status(404).json({ error: 'Booking not found' });
-      }
+      const isPrivileged = req.user!.role === UserRole.ADMIN || req.user!.role === UserRole.STAFF;
+      const isOwner = booking.user_id === req.user!.userId;
+      if (!isPrivileged && !isOwner) return res.status(403).json({ error: 'Access denied' });
 
-      // Check permissions - user can edit their own, admins/staff can edit any
-      if (req.user!.role !== UserRole.ADMIN && 
-          req.user!.role !== UserRole.STAFF && 
-          booking.user_id !== req.user!.userId) {
-        return res.status(403).json({ error: 'Access denied' });
+      // Creators cannot edit approved bookings
+      if (booking.status === 'approved' && !isPrivileged) {
+        return res.status(400).json({ error: 'Approved bookings cannot be edited by requester' });
       }
 
       const updates: any = {};
@@ -140,14 +164,36 @@ router.put('/:id',
       if (req.body.resource_name) updates.resource_name = req.body.resource_name;
       if (req.body.start_time) updates.start_time = req.body.start_time;
       if (req.body.end_time) updates.end_time = req.body.end_time;
+      if (req.body.reason !== undefined) updates.reason = req.body.reason;
 
       if (Object.keys(updates).length === 0) {
         return res.status(400).json({ error: 'No updates provided' });
       }
 
+      const nextStart = updates.start_time ?? booking.start_time;
+      const nextEnd   = updates.end_time   ?? booking.end_time;
+      const nextName  = updates.resource_name ?? booking.resource_name;
+
+      if (!isStartBeforeEnd(nextStart, nextEnd)) {
+        return res.status(400).json({ error: 'start_time must be before end_time' });
+      }
+
+      // Overlap check excluding current booking
+      const editConflicts = await dbAll(`
+        SELECT id FROM bookings
+        WHERE resource_name = ?
+          AND status IN ('pending','approved')
+          AND start_time < ?
+          AND end_time   > ?
+          AND id <> ?
+      `, [nextName, nextEnd, nextStart, req.params.id]);
+
+      if (editConflicts.length > 0) {
+        return res.status(409).json({ error: 'Time slot already booked' });
+      }
+
       const setClause = Object.keys(updates).map(key => `${key} = ?`).join(', ');
       const values = [...Object.values(updates), req.params.id];
-
       await dbRun(`UPDATE bookings SET ${setClause} WHERE id = ?`, values);
 
       const updatedBooking = await dbGet('SELECT * FROM bookings WHERE id = ?', [req.params.id]);
@@ -158,43 +204,61 @@ router.put('/:id',
   }
 );
 
-// Update booking status (admin/staff only)
+// ------------------------------
+// PATCH /api/bookings/:id/status (admin/staff only)
+// ------------------------------
 router.patch('/:id/status',
   authenticate,
   authorize(UserRole.ADMIN, UserRole.STAFF),
-  [
-    body('status').isIn(['pending', 'approved', 'rejected', 'completed'])
-  ],
+  [body('status').isIn(['pending','approved','rejected','completed'])],
   async (req: Request & { user?: any }, res: Response) => {
     try {
       const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
+      if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
+      const { status } = req.body as { status: string };
+      const booking = await dbGet('SELECT * FROM bookings WHERE id = ?', [req.params.id]);
+      if (!booking) return res.status(404).json({ error: 'Booking not found' });
+
+      // Re-check conflicts at approval time (race-safety)
+      if (status === 'approved') {
+        const conflicts = await dbAll(`
+          SELECT id FROM bookings
+          WHERE resource_name = ?
+            AND status IN ('pending','approved')
+            AND start_time < ?
+            AND end_time   > ?
+            AND id <> ?
+        `, [booking.resource_name, booking.end_time, booking.start_time, booking.id]);
+        if (conflicts.length > 0) {
+          return res.status(409).json({ error: 'conflict-now', message: 'Overlaps an existing booking' });
+        }
       }
 
-      const { status } = req.body;
       await dbRun('UPDATE bookings SET status = ? WHERE id = ?', [status, req.params.id]);
-
-      const booking = await dbGet('SELECT * FROM bookings WHERE id = ?', [req.params.id]);
-      res.json(booking);
+      const updated = await dbGet('SELECT * FROM bookings WHERE id = ?', [req.params.id]);
+      res.json(updated);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   }
 );
 
-// Delete booking
+// ------------------------------
+// DELETE /api/bookings/:id
+// ------------------------------
 router.delete('/:id', authenticate, async (req: Request & { user?: any }, res: Response) => {
   try {
     const booking: any = await dbGet('SELECT * FROM bookings WHERE id = ?', [req.params.id]);
+    if (!booking) return res.status(404).json({ error: 'Booking not found' });
 
-    if (!booking) {
-      return res.status(404).json({ error: 'Booking not found' });
-    }
+    const isPrivileged = req.user!.role === UserRole.ADMIN || req.user!.role === UserRole.STAFF;
+    const isOwner = booking.user_id === req.user!.userId;
+    if (!isPrivileged && !isOwner) return res.status(403).json({ error: 'Access denied' });
 
-    // Users can only delete their own bookings unless admin
-    if (req.user!.role !== UserRole.ADMIN && booking.user_id !== req.user!.userId) {
-      return res.status(403).json({ error: 'Access denied' });
+    // Creators cannot delete approved bookings
+    if (booking.status === 'approved' && !isPrivileged) {
+      return res.status(400).json({ error: 'Approved bookings cannot be deleted by requester' });
     }
 
     await dbRun('DELETE FROM bookings WHERE id = ?', [req.params.id]);
@@ -205,5 +269,3 @@ router.delete('/:id', authenticate, async (req: Request & { user?: any }, res: R
 });
 
 export default router;
-
-
