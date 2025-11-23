@@ -9,6 +9,7 @@ const Events = () => {
   const [showModal, setShowModal] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [filterMode, setFilterMode] = useState<'all' | 'my'>('all');
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [clickPopupDay, setClickPopupDay] = useState<number | null>(null);
   const [showClickPopup, setShowClickPopup] = useState(false);
@@ -147,6 +148,11 @@ const Events = () => {
       if (!user || (user.role !== 'admin' && event.organizer_id !== user.id)) {
         return false;
       }
+    }
+    
+    // Filter by "My Events" if enabled
+    if (filterMode === 'my' && user && event.organizer_id !== user.id) {
+      return false;
     }
     
     if (!searchQuery.trim()) return true;
@@ -330,6 +336,22 @@ const Events = () => {
               </button>
             )}
           </div>
+          <select
+            value={filterMode}
+            onChange={(e) => setFilterMode(e.target.value as 'all' | 'my')}
+            className="search-input"
+            style={{ 
+              width: '120px', 
+              minWidth: '120px', 
+              fontSize: '0.9rem', 
+              cursor: 'pointer',
+              boxShadow: 'none'
+            }}
+            onFocus={(e) => e.target.style.boxShadow = 'none'}
+          >
+            <option value="all">All Events</option>
+            <option value="my">My Events</option>
+          </select>
           <div className="view-toggle">
             <button
               className={`btn btn-small ${viewMode === 'list' ? 'active' : 'inactive'}`}

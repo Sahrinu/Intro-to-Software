@@ -9,7 +9,7 @@ declare global {
     }
   }
 }
-
+// Middleware to authenticate JWT token to check if user role matches the allowed roles
 export const authenticate = (req: Request, res: Response, next: NextFunction): void => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
@@ -19,7 +19,7 @@ export const authenticate = (req: Request, res: Response, next: NextFunction): v
       return;
     }
 
-    const secret = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production';
+    const secret = process.env.JWT_SECRET || '2afe5539af0e1e43f8dba5d3a4cebb5a0c040466d40a167b6f296b899f7a38b37ad6abea7cfd9b2036ce8d61b1f25369851db4a2598c25a7a54644343e6c2ead';
     const decoded = jwt.verify(token, secret) as JwtPayload;
     req.user = decoded;
     next();
