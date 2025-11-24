@@ -7,6 +7,15 @@ import { UserRole } from '../types';
 const router = express.Router();
 
 // Helper: consistent overlap rule
+import express, { Request, Response } from 'express';
+import { body, validationResult } from 'express-validator';
+import { authenticate, authorize, optionalAuth } from '../middleware/auth.middleware';
+import { dbGet, dbAll, dbRun } from '../utils/db.utils';
+import { UserRole } from '../types';
+
+const router = express.Router();
+
+// Helper: consistent overlap rule
 function isStartBeforeEnd(start: string, end: string) {
   return new Date(start) < new Date(end);
 }
@@ -17,7 +26,6 @@ router.get('/', optionalAuth, async (req: Request & { user?: any }, res: Respons
   const isPrivileged = role === UserRole.ADMIN || role === UserRole.STAFF;
 
   // PUBLIC behavior: if not logged in, return safe/public list (Option C)
-  // If you want pure-public: expose only approved and redact sensitive fields.
   if (!req.user) {
     const rows = await dbAll(`
       SELECT id, resource_type, resource_name, start_time, end_time, status
@@ -25,10 +33,9 @@ router.get('/', optionalAuth, async (req: Request & { user?: any }, res: Respons
       WHERE status = 'approved'
       ORDER BY start_time ASC
     `, []);
-    return res.json(rows); // redacted fields only
+    return res.json(rows);
   }
 
-  // Original logic preserved
   const sql = `
     SELECT b.*, u.name as user_name, u.email as user_email
     FROM bookings b
@@ -41,7 +48,7 @@ router.get('/', optionalAuth, async (req: Request & { user?: any }, res: Respons
   res.json(bookings);
 });
 
-// GET /api/bookings/availability  (safe to be public)
+// GET /api/bookings/availability
 router.get('/availability', optionalAuth, async (req: Request, res: Response) => { /* unchanged */ });
 
 // GET /api/bookings/:id
@@ -59,7 +66,6 @@ router.get('/:id', optionalAuth, async (req: Request & { user?: any }, res: Resp
   const isPrivileged = role === UserRole.ADMIN || role === UserRole.STAFF;
 
   if (!req.user) {
-    // Option C: only approved bookings are visible to guests; return redacted
     if (booking.status === 'approved') {
       const { id, resource_type, resource_name, start_time, end_time, status } = booking;
       return res.json({ id, resource_type, resource_name, start_time, end_time, status });
@@ -72,9 +78,7 @@ router.get('/:id', optionalAuth, async (req: Request & { user?: any }, res: Resp
 });
 
 
-// ------------------------------
 // POST /api/bookings (create)
-// ------------------------------
 router.post('/',
   authenticate,
   [
@@ -83,7 +87,6 @@ router.post('/',
     body('start_time').isISO8601(),
     body('end_time').isISO8601(),
     body('reason').optional().isString().isLength({ max: 500 }),
-    // Optional, allow Admin/Staff to specify a user to create for:
     body('user_id').optional().isInt({ gt: 0 }),
   ],
   async (req: Request & { user?: any }, res: Response) => {
@@ -93,20 +96,13 @@ router.post('/',
 
       const { resource_type, resource_name, start_time, end_time, reason, user_id } = req.body;
 
-      // (debug removed) request context is validated and errors are logged on failure
-
       if (!isStartBeforeEnd(start_time, end_time)) {
         return res.status(400).json({ error: 'start_time must be before end_time' });
       }
 
-      // who is this booking for?
-      const isPrivileged =
-        req.user!.role === UserRole.ADMIN || req.user!.role === UserRole.STAFF;
-
-      // Admin/Staff can create on behalf of others by passing user_id
+      const isPrivileged = req.user!.role === UserRole.ADMIN || req.user!.role === UserRole.STAFF;
       const targetUserId = isPrivileged && user_id ? Number(user_id) : req.user!.userId;
 
-      // Proper conflict detection (pending/approved block)
       const conflicts = await dbAll(`
         SELECT id FROM bookings
         WHERE resource_name = ?
@@ -145,9 +141,7 @@ router.post('/',
 );
 
 
-// ------------------------------
 // PUT /api/bookings/:id (update)
-// ------------------------------
 router.put('/:id',
   authenticate,
   [
@@ -169,7 +163,6 @@ router.put('/:id',
       const isOwner = booking.user_id === req.user!.userId;
       if (!isPrivileged && !isOwner) return res.status(403).json({ error: 'Access denied' });
 
-      // Creators cannot edit approved bookings
       if (booking.status === 'approved' && !isPrivileged) {
         return res.status(400).json({ error: 'Approved bookings cannot be edited by requester' });
       }
@@ -193,7 +186,6 @@ router.put('/:id',
         return res.status(400).json({ error: 'start_time must be before end_time' });
       }
 
-      // Overlap check excluding current booking
       const editConflicts = await dbAll(`
         SELECT id FROM bookings
         WHERE resource_name = ?
@@ -219,9 +211,7 @@ router.put('/:id',
   }
 );
 
-// ------------------------------
 // PATCH /api/bookings/:id/status (admin/staff only)
-// ------------------------------
 router.patch('/:id/status',
   authenticate,
   authorize(UserRole.ADMIN, UserRole.STAFF),
@@ -235,7 +225,6 @@ router.patch('/:id/status',
       const booking = await dbGet('SELECT * FROM bookings WHERE id = ?', [req.params.id]);
       if (!booking) return res.status(404).json({ error: 'Booking not found' });
 
-      // Re-check conflicts at approval time (race-safety)
       if (status === 'approved') {
         const conflicts = await dbAll(`
           SELECT id FROM bookings
@@ -259,9 +248,7 @@ router.patch('/:id/status',
   }
 );
 
-// ------------------------------
 // DELETE /api/bookings/:id
-// ------------------------------
 router.delete('/:id', authenticate, async (req: Request & { user?: any }, res: Response) => {
   try {
     const booking: any = await dbGet('SELECT * FROM bookings WHERE id = ?', [req.params.id]);
@@ -271,7 +258,6 @@ router.delete('/:id', authenticate, async (req: Request & { user?: any }, res: R
     const isOwner = booking.user_id === req.user!.userId;
     if (!isPrivileged && !isOwner) return res.status(403).json({ error: 'Access denied' });
 
-    // Creators cannot delete approved bookings
     if (booking.status === 'approved' && !isPrivileged) {
       return res.status(400).json({ error: 'Approved bookings cannot be deleted by requester' });
     }

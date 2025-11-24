@@ -9,6 +9,7 @@ const Events = () => {
   const [showModal, setShowModal] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [filterMode, setFilterMode] = useState<'all' | 'my'>('all');
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [clickPopupDay, setClickPopupDay] = useState<number | null>(null);
   const [showClickPopup, setShowClickPopup] = useState(false);
@@ -142,6 +143,18 @@ const Events = () => {
 
   // Filter events based on search query (title, location, organizer only)
   const filteredEvents = events.filter(event => {
+    // Filter out rejected events for non-admins and non-creators
+    if (event.status === 'rejected') {
+      if (!user || (user.role !== 'admin' && event.organizer_id !== user.id)) {
+        return false;
+      }
+    }
+    
+    // Filter by "My Events" if enabled
+    if (filterMode === 'my' && user && event.organizer_id !== user.id) {
+      return false;
+    }
+    
     if (!searchQuery.trim()) return true;
     const query = searchQuery.toLowerCase();
     return (
@@ -149,6 +162,23 @@ const Events = () => {
       (event.location && event.location.toLowerCase().includes(query)) ||
       (event.organizer_name && event.organizer_name.toLowerCase().includes(query))
     );
+  }).sort((a, b) => {
+    const now = new Date();
+    const aStart = new Date(a.start_time);
+    const aEnd = new Date(a.end_time);
+    const bStart = new Date(b.start_time);
+    const bEnd = new Date(b.end_time);
+
+    // Check if events are in progress
+    const aInProgress = aStart <= now && aEnd >= now;
+    const bInProgress = bStart <= now && bEnd >= now;
+
+    // In-progress events come first
+    if (aInProgress && !bInProgress) return -1;
+    if (!aInProgress && bInProgress) return 1;
+
+    // If both in progress or both not in progress, sort by start time (earliest first)
+    return aStart.getTime() - bStart.getTime();
   });
 
   const getDaysInMonth = (date: Date) => {
@@ -306,6 +336,22 @@ const Events = () => {
               </button>
             )}
           </div>
+          <select
+            value={filterMode}
+            onChange={(e) => setFilterMode(e.target.value as 'all' | 'my')}
+            className="search-input"
+            style={{ 
+              width: '120px', 
+              minWidth: '120px', 
+              fontSize: '0.9rem', 
+              cursor: 'pointer',
+              boxShadow: 'none'
+            }}
+            onFocus={(e) => e.target.style.boxShadow = 'none'}
+          >
+            <option value="all">All Events</option>
+            <option value="my">My Events</option>
+          </select>
           <div className="view-toggle">
             <button
               className={`btn btn-small ${viewMode === 'list' ? 'active' : 'inactive'}`}
@@ -339,7 +385,7 @@ const Events = () => {
               <div className="list-item-header">
                 <div className="list-item-title">
                   {event.title}
-                  {event.status && (
+                  {event.status && user && (user.role === 'admin' || event.organizer_id === user.id) && (
                     <span className={`status-badge status-${event.status}`}>
                       {event.status === 'pending' ? '⏳ Pending' : 
                        event.status === 'approved' ? '✓ Approved' : 

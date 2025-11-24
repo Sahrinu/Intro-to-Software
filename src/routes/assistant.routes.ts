@@ -1,18 +1,21 @@
 import express, { Request, Response } from "express";
 import { body, validationResult } from "express-validator";
 import { authenticate } from "../middleware/auth.middleware";
-import OpenAI from "openai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const router = express.Router();
 
-// Initialize OpenAI client
-const getOpenAIClient = () => {
-  const apiKey = process.env.OPENAI_API_KEY;
+// Store conversation history per user (in-memory storage, last 5 messages)
+const conversationHistory = new Map<number, Array<{ role: string; content: string }>>();
+
+// Initialize Gemini client
+const getGeminiClient = () => {
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    console.error("Missing OPENAI_API_KEY in environment variables");
+    console.error("Missing GEMINI_API_KEY in environment variables");
     return null;
   }
-  return new OpenAI({ apiKey });
+  return new GoogleGenerativeAI(apiKey);
 };
 
 // AI Assistant chat endpoint
@@ -28,37 +31,85 @@ router.post(
       }
 
       const { message } = req.body;
-      const openai = getOpenAIClient();
+      const userId = (req as any).user.id;
+      const genAI = getGeminiClient();
+
+      // Get or initialize conversation history for this user
+      if (!conversationHistory.has(userId)) {
+        conversationHistory.set(userId, []);
+      }
+      const history = conversationHistory.get(userId)!;
 
       const systemPrompt = `You are a helpful AI assistant for a sustainable campus management system. 
-You help users with:
-- Booking campus resources (rooms, equipment, facilities)
-- Finding and managing events
-- Submitting maintenance requests
-- General campus information and sustainability tips
-- Navigation and campus services
 
-Be friendly, concise, and helpful. If you don't know something, suggest contacting campus administration.`;
+IMPORTANT: You provide information and guidance only. You CANNOT directly create bookings, events, or maintenance requests. Users must use the system's forms.
 
-      if (openai) {
+When users ask about creating something, tell them EXACTLY what fields to fill in:
+
+FOR EVENTS (go to Events page, click "Create Event"):
+Required fields:
+- Title: Name of the event
+- Location: Where the event will be held
+- Start Time: When the event starts (date and time)
+- End Time: When the event ends (date and time)
+- category: type of event
+- description: details about the event
+
+That's it! Just these 6 required fields and no optional fields. Events created by regular users need admin approval.
+
+FOR BOOKINGS (go to Bookings page):
+Required fields:
+- Resource Type: Type of resource needed
+- Resource Name: Specific resource to book
+- Start Time: When booking starts
+- End Time: When booking ends
+- Reason for booking
+
+
+FOR MAINTENANCE (go to Maintenance page, click "New Request"):
+Required fields:
+- Title: Brief description
+- Description: Details of the issue
+- Location: Where the issue is
+- Priority: low, medium, high, or urgent
+
+Be concise (2-3 sentences max). Don't ask users for information - just guide them to the right page and list the required fields.`;
+
+      if (genAI) {
         try {
-          const completion = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: message },
-            ],
-            max_tokens: 500,
-            temperature: 0.7,
+          const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+          
+          // Build conversation context with history
+          let conversationContext = systemPrompt + "\n\n";
+          
+          // Add previous conversation history (last 5 exchanges)
+          history.forEach((entry) => {
+            if (entry.role === "user") {
+              conversationContext += `User: ${entry.content}\n\n`;
+            } else {
+              conversationContext += `Assistant: ${entry.content}\n\n`;
+            }
           });
+          
+          // Add current message
+          conversationContext += `User: ${message}\n\nAssistant:`;
+          
+          const result = await model.generateContent(conversationContext);
+          const response = await result.response;
+          const responseText = response.text() || "Sorry, I could not generate a response.";
 
-          const responseText =
-            completion.choices[0]?.message?.content ||
-            "Sorry, I could not generate a response.";
+          // Store conversation in history (keep only last 5 exchanges = 10 messages)
+          history.push({ role: "user", content: message });
+          history.push({ role: "assistant", content: responseText });
+          
+          // Keep only last 5 exchanges (10 messages)
+          if (history.length > 10) {
+            history.splice(0, history.length - 10);
+          }
 
-          res.json({ response: responseText, source: "openai" });
+          res.json({ response: responseText, source: "gemini" });
         } catch (error: any) {
-          console.error("OpenAI API error:", error);
+          console.error("Gemini API error:", error);
           res.json({
             response: generateMockResponse(message),
             source: "mock",
@@ -77,17 +128,16 @@ Be friendly, concise, and helpful. If you don't know something, suggest contacti
   }
 );
 
-router.get("/test-openai", async (req: Request, res: Response) => {
+router.get("/test-gemini", async (req: Request, res: Response) => {
   try {
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: "Say hello from GPT" }],
-    });
-    res.send(completion.choices[0].message.content);
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const result = await model.generateContent("Say hello from Gemini");
+    const response = await result.response;
+    res.send(response.text());
   } catch (err: any) {
-    console.error("OpenAI test error:", err.message);
-    res.status(500).send("OpenAI test failed: " + err.message);
+    console.error("Gemini test error:", err.message);
+    res.status(500).send("Gemini test failed: " + err.message);
   }
 });
 
