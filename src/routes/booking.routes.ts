@@ -5,16 +5,7 @@ import { dbGet, dbAll, dbRun } from '../utils/db.utils';
 import { UserRole } from '../types';
 
 const router = express.Router();
-
-// Helper: consistent overlap rule
-import express, { Request, Response } from 'express';
-import { body, validationResult } from 'express-validator';
-import { authenticate, authorize, optionalAuth } from '../middleware/auth.middleware';
-import { dbGet, dbAll, dbRun } from '../utils/db.utils';
-import { UserRole } from '../types';
-
-const router = express.Router();
-
+ 
 // Helper: consistent overlap rule
 function isStartBeforeEnd(start: string, end: string) {
   return new Date(start) < new Date(end);
