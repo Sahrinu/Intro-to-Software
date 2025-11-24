@@ -82,17 +82,29 @@ router.post('/',
     body('resource_name').trim().notEmpty(),
     body('start_time').isISO8601(),
     body('end_time').isISO8601(),
-    body('reason').optional().isString().isLength({ max: 500 })
+    body('reason').optional().isString().isLength({ max: 500 }),
+    // Optional, allow Admin/Staff to specify a user to create for:
+    body('user_id').optional().isInt({ gt: 0 }),
   ],
   async (req: Request & { user?: any }, res: Response) => {
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
-      const { resource_type, resource_name, start_time, end_time, reason } = req.body;
+      const { resource_type, resource_name, start_time, end_time, reason, user_id } = req.body;
+
+      // (debug removed) request context is validated and errors are logged on failure
+
       if (!isStartBeforeEnd(start_time, end_time)) {
         return res.status(400).json({ error: 'start_time must be before end_time' });
       }
+
+      // who is this booking for?
+      const isPrivileged =
+        req.user!.role === UserRole.ADMIN || req.user!.role === UserRole.STAFF;
+
+      // Admin/Staff can create on behalf of others by passing user_id
+      const targetUserId = isPrivileged && user_id ? Number(user_id) : req.user!.userId;
 
       // Proper conflict detection (pending/approved block)
       const conflicts = await dbAll(`
@@ -110,16 +122,28 @@ router.post('/',
       const result = await dbRun(
         `INSERT INTO bookings (user_id, resource_type, resource_name, start_time, end_time, status, reason)
          VALUES (?, ?, ?, ?, ?, 'pending', ?)`,
-        [req.user!.userId, resource_type, resource_name, start_time, end_time, reason ?? null]
+        [targetUserId, resource_type, resource_name, start_time, end_time, reason ?? null]
       );
 
+      if (!result || typeof result.lastID !== 'number') {
+        console.error('POST /api/bookings - insert returned unexpected result', result);
+        return res.status(500).json({ error: 'Failed to create booking' });
+      }
+
       const booking = await dbGet('SELECT * FROM bookings WHERE id = ?', [result.lastID]);
+      if (!booking) {
+        console.error('POST /api/bookings - could not retrieve booking after insert, id=', result.lastID);
+        return res.status(500).json({ error: 'Failed to retrieve created booking' });
+      }
+
       res.status(201).json(booking);
     } catch (error: any) {
+      console.error('POST /api/bookings - error:', error);
       res.status(500).json({ error: error.message });
     }
   }
 );
+
 
 // ------------------------------
 // PUT /api/bookings/:id (update)

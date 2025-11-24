@@ -88,7 +88,7 @@ const Bookings = () => {
   };
 
   const handleDelete = async (id: number, status: Booking['status']) => {
-    if (status === 'approved' && user?.role !== 'ADMIN' && user?.role !== 'STAFF') {
+    if (status === 'approved' && user?.role !== 'admin' && user?.role !== 'staff') {
       setError('Approved bookings cannot be deleted by requester.');
       return;
     }
@@ -139,6 +139,9 @@ const Bookings = () => {
     catch (e: any) { setError(e.message || 'Reject failed.'); }
   };
 
+
+  
+
   return (
     <div className="page">
       <div className="page-header">
@@ -176,7 +179,7 @@ const Bookings = () => {
 
                   {/* owner controls, but restrict for approved unless admin/staff */}
                   {user && booking.user_id === user.id && (
-                    (booking.status !== 'approved' || (user.role === 'ADMIN' || user.role === 'STAFF')) && (
+                    (booking.status !== 'approved' || (user.role === 'admin' || user.role === 'staff')) && (
                       <div className="list-item-actions">
                         <button className="btn btn-small" onClick={() => handleEdit(booking)} title="Edit booking">Edit</button>
                         <button className="btn btn-small btn-danger" onClick={() => handleDelete(booking.id, booking.status)} title="Delete booking">Delete</button>
@@ -185,7 +188,7 @@ const Bookings = () => {
                   )}
 
                   {/* Admin controls */}
-                  {(user?.role === 'ADMIN' || user?.role === 'STAFF') && booking.status === 'pending' && (
+                  {(user?.role === 'admin' || user?.role === 'staff') && booking.status === 'pending' && (
                     <div className="list-item-actions">
                       <button className="btn btn-small" onClick={() => approve(booking.id)}>Approve</button>
                       <button className="btn btn-small btn-danger" onClick={() => reject(booking.id)}>Reject</button>
@@ -284,5 +287,6 @@ const Bookings = () => {
     </div>
   );
 };
+
 
 export default Bookings;
