@@ -67,6 +67,16 @@ export const initializeDatabase = async (): Promise<void> => {
     )
   `);
 
+  // Add `reason` column to bookings table if it doesn't exist (migration)
+  try {
+    await run(database, `ALTER TABLE bookings ADD COLUMN reason TEXT`);
+    console.log('Added reason column to bookings table');
+  } catch (err: any) {
+    if (!err.message.includes('duplicate column') && !err.message.includes('already exists')) {
+      console.error('Error adding reason column to bookings table:', err);
+    }
+  }
+
   // --- EVENTS TABLE ---
   await run(database, `
     CREATE TABLE IF NOT EXISTS events (
