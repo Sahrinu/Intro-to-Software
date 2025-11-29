@@ -97,6 +97,22 @@ body {
     color: var(--primary-color);
 }
 
+.welcome-banner {
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+    padding: 0.5rem 0.5rem;
+    border-radius: 12px;
+    margin: 1rem 0;
+    box-shadow: var(--shadow);
+}
+
+.welcome-banner h3 {
+    color: white;
+    font-size: 1.3rem;
+    font-weight: 600;
+    margin: 0;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
 .nav-links {
     display: flex;
     gap: 1.5rem;

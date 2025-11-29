@@ -112,7 +112,7 @@ router.post('/',
   }
 );
 
-// Update maintenance request status (admin/maintenance only)
+// Update maintenance request status (admin and maintenance staff only)
 router.patch('/:id/status',
   authenticate,
   authorize(UserRole.ADMIN, UserRole.MAINTENANCE),
@@ -146,15 +146,19 @@ router.patch('/:id/status',
   }
 );
 
-// Assign maintenance request (admin/maintenance only)
+// Assign maintenance request (admin and maintenance@campus.edu only)
 router.patch('/:id/assign',
   authenticate,
-  authorize(UserRole.ADMIN, UserRole.MAINTENANCE),
   [
     body('assigned_to').isInt()
   ],
   async (req: Request & { user?: any }, res: Response) => {
     try {
+      // Check if user is admin or maintenance@campus.edu
+      if (req.user!.role !== UserRole.ADMIN && req.user!.email !== 'maintenance@campus.edu') {
+        return res.status(403).json({ error: 'Only admins and maintenance@campus.edu can assign staff' });
+      }
+
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });

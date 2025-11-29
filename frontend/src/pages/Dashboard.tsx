@@ -33,11 +33,22 @@ const Dashboard = () => {
     loadData();
   }, []);
 
+  const getWelcomeMessage = () => {
+    if (user?.role === 'admin') {
+      return 'Welcome, Admin';
+    } else if (user?.role === 'maintenance') {
+      return 'Welcome, Maintenance Staff';
+    }
+    return `Welcome, ${user?.name}!`;
+  };
+
   return (
     <div className="page">
       <div className="page-header">
         <h2>Dashboard</h2>
-        <p>Welcome, {user?.name}!</p>
+        <div className="welcome-banner">
+          <h3>{getWelcomeMessage()}</h3>
+        </div>
       </div>
       {loading ? (
         <div className="loading">Loading...</div>

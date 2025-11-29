@@ -5,6 +5,7 @@ import { maintenanceAPI, MaintenanceRequest, usersAPI, User } from '../services/
 const Maintenance = () => {
   const { user } = useAuth();
   const isManager = user?.role === 'admin' || user?.role === 'maintenance';
+  const canAssign = user?.role === 'admin' || user?.email === 'maintenance@campus.edu';
   const [requests, setRequests] = useState<MaintenanceRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -25,10 +26,10 @@ const Maintenance = () => {
   }, []);
 
   useEffect(() => {
-    if (isManager) {
+    if (canAssign) {
       loadStaff();
     }
-  }, [isManager]);
+  }, [canAssign]);
 
   const loadRequests = async () => {
     setLoading(true);
@@ -185,21 +186,23 @@ const Maintenance = () => {
                           <option value="cancelled">Cancelled</option>
                         </select>
                       </div>
-                      <div className="form-group">
-                        <label>Assign</label>
-                        <select
-                          value={request.assigned_to ?? ''}
-                          onChange={(e) => handleAssignChange(request.id, e.target.value)}
-                          disabled={assigningId === request.id}
-                        >
-                          <option value="">Select staff</option>
-                          {staff.map((member) => (
-                            <option key={member.id} value={member.id}>
-                              {member.name} ({member.email})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                      {canAssign && (
+                        <div className="form-group">
+                          <label>Assign</label>
+                          <select
+                            value={request.assigned_to ?? ''}
+                            onChange={(e) => handleAssignChange(request.id, e.target.value)}
+                            disabled={assigningId === request.id}
+                          >
+                            <option value="">Select staff</option>
+                            {staff.map((member) => (
+                              <option key={member.id} value={member.id}>
+                                {member.name} ({member.email})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
