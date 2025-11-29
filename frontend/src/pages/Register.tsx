@@ -79,7 +79,7 @@ const Register = () => {
             </select>
           </div>
           <button type="submit" className="btn btn-primary" disabled={loading}>
-            {loading ? "&#x21bb;" : 'Register'}
+            {loading ? "Registering..." : 'Register'}
           </button>
         </form>
         <p className="auth-switch">

@@ -20,8 +20,8 @@ router.get('/', authenticate, async (req: Request & { user?: any }, res: Respons
   try {
     let requests;
     
-    // Admins and maintenance staff can see all requests
-    if (req.user!.role === UserRole.ADMIN || req.user!.role === UserRole.MAINTENANCE) {
+    // Admins can see all requests
+    if (req.user!.role === UserRole.ADMIN) {
       requests = await dbAll(`
         SELECT mr.*, 
                u.name as requester_name, u.email as requester_email,
@@ -38,8 +38,48 @@ router.get('/', authenticate, async (req: Request & { user?: any }, res: Respons
           END,
           mr.created_at DESC
       `);
+    } else if (req.user!.role === UserRole.MAINTENANCE) {
+      // maintenance@campus.edu can see all requests
+      // Other maintenance staff can only see requests assigned to them
+      if (req.user!.email === 'maintenance@campus.edu') {
+        requests = await dbAll(`
+          SELECT mr.*, 
+                 u.name as requester_name, u.email as requester_email,
+                 a.name as assigned_name
+          FROM maintenance_requests mr
+          JOIN users u ON mr.user_id = u.id
+          LEFT JOIN users a ON mr.assigned_to = a.id
+          ORDER BY 
+            CASE mr.priority
+              WHEN 'urgent' THEN 1
+              WHEN 'high' THEN 2
+              WHEN 'medium' THEN 3
+              WHEN 'low' THEN 4
+            END,
+            mr.created_at DESC
+        `);
+      } else {
+        // Other maintenance staff only see their assigned requests
+        requests = await dbAll(`
+          SELECT mr.*, 
+                 u.name as requester_name, u.email as requester_email,
+                 a.name as assigned_name
+          FROM maintenance_requests mr
+          JOIN users u ON mr.user_id = u.id
+          LEFT JOIN users a ON mr.assigned_to = a.id
+          WHERE mr.assigned_to = ?
+          ORDER BY 
+            CASE mr.priority
+              WHEN 'urgent' THEN 1
+              WHEN 'high' THEN 2
+              WHEN 'medium' THEN 3
+              WHEN 'low' THEN 4
+            END,
+            mr.created_at DESC
+        `, [req.user!.userId]);
+      }
     } else {
-      // Users can only see their own requests
+      // Regular users can only see their own requests
       requests = await dbAll(`
         SELECT mr.*, 
                u.name as requester_name, u.email as requester_email,
@@ -67,10 +107,13 @@ router.get('/:id', authenticate, async (req: Request & { user?: any }, res: Resp
       return res.status(404).json({ error: 'Maintenance request not found' });
     }
 
-    // Users can only see their own requests unless admin/maintenance
-    if (req.user!.role !== UserRole.ADMIN && 
-        req.user!.role !== UserRole.MAINTENANCE && 
-        request.user_id !== req.user!.userId) {
+    // Check access permissions
+    const isAdmin = req.user!.role === UserRole.ADMIN;
+    const isMaintenanceLead = req.user!.role === UserRole.MAINTENANCE && req.user!.email === 'maintenance@campus.edu';
+    const isAssignedStaff = req.user!.role === UserRole.MAINTENANCE && request.assigned_to === req.user!.userId;
+    const isRequester = request.user_id === req.user!.userId;
+
+    if (!isAdmin && !isMaintenanceLead && !isAssignedStaff && !isRequester) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
