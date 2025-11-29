@@ -88,8 +88,11 @@ router.post('/login',
         options as any
       );
 
+      // Ensure token has no internal whitespace/newlines before returning
+      const compactToken = String(token).replace(/\s+/g, '');
+
       res.json({
-        token,
+        token: compactToken,
         user: {
           id: user.id,
           email: user.email,

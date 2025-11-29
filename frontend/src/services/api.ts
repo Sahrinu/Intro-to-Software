@@ -1,3 +1,17 @@
+import axios from "axios";
+
+const http = axios.create({
+  baseURL: "http://127.0.0.1:3000/api", // or "/api" if you use a proxy
+});
+
+http.interceptors.request.use((config) => {
+  const token = localStorage.getItem("token");
+  if (token) {
+    config.headers = config.headers ?? {};
+    (config.headers as any).Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
 const API_BASE_URL = '/api';
 
 export interface User {
@@ -101,81 +115,6 @@ export const authAPI = {
 };
 
 
-async function http<T>(url: string, opts?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    headers: { 'Content-Type': 'application/json', ...(opts?.headers || {}) },
-    ...opts,
-  });
-  if (!res.ok) {
-    let body: any = null;
-    try { body = await res.json(); } catch {}
-    const err: any = new Error(body?.error || res.statusText);
-    err.status = res.status;
-    throw err;
-  }
-  return res.json();
-}
-
-// Our unified Booking API — matches your backend routes
-export const bookingsAPI = {
-  // Get all bookings (admin sees all, normal users see their own)
-  getAll: () => http<any[]>('/api/bookings'),
-
-  // Get a single booking
-  getById: (id: number) => http<any>(`/api/bookings/${id}`),
-
-  // Create a booking
-  create: (payload: {
-    resource_type: string;
-    resource_name: string;
-    start_time: string;
-    end_time: string;
-    reason?: string;
-  }) =>
-    http('/api/bookings', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
-
-  // Update an existing booking
-  update: (id: number, payload: any) =>
-    http(`/api/bookings/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-    }),
-
-  // Delete a booking
-  delete: (id: number) =>
-    http(`/api/bookings/${id}`, { method: 'DELETE' }),
-
-  // Approve / reject / complete bookings (Admin/Staff only)
-  setStatus: (
-    id: number,
-    status: 'pending' | 'approved' | 'rejected' | 'completed'
-  ) =>
-    http(`/api/bookings/${id}/status`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status }),
-    }),
-
-  // Check availability for a resource/time window
-  getAvailability: (
-    resourceName: string,
-    start: string,
-    end: string
-  ) =>
-    http<{
-      resource_name: string;
-      window: { start: string; end: string };
-      busy: Array<{ id: number; start: string; end: string; status: string }>;
-    }>(
-      `/api/bookings/availability?resource_name=${encodeURIComponent(
-        resourceName
-      )}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`
-    ),
-};
-
-
 export const eventsAPI = {
   getAll: (): Promise<Event[]> => apiRequest<Event[]>('/events'),
   getById: (id: number): Promise<Event> => apiRequest<Event>(`/events/${id}`),
@@ -248,4 +187,56 @@ export const assistantAPI = {
       method: 'POST',
       body: JSON.stringify({ message }),
     }),
+};
+export const bookingsAPI = {
+  async getAll() {
+    const { data } = await http.get("/bookings");
+    return data;
+  },
+
+  async getAvailability(resource_name: string, start: string, end: string) {
+    const { data } = await http.get("/bookings/availability", {
+      params: { resource_name, start, end },
+    });
+    return data;
+  },
+
+  async create(payload: {
+    resource_type: string;
+    resource_name: string;
+    start_time: string;
+    end_time: string;
+    reason?: string;
+    user_id?: number;
+  }) {
+    const { data } = await http.post("/bookings", payload);
+    return data;
+  },
+
+  async update(
+    id: number,
+    payload: {
+      resource_type?: string;
+      resource_name?: string;
+      start_time?: string;
+      end_time?: string;
+      reason?: string;
+    }
+  ) {
+    const { data } = await http.put(`/bookings/${id}`, payload);
+    return data;
+  },
+
+  async delete(id: number) {
+    const { data } = await http.delete(`/bookings/${id}`);
+    return data;
+  },
+
+  async setStatus(
+    id: number,
+    status: "pending" | "approved" | "rejected" | "completed"
+  ) {
+    const { data } = await http.patch(`/bookings/${id}/status`, { status });
+    return data;
+  },
 };

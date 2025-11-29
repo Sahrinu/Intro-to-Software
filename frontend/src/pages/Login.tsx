@@ -17,12 +17,16 @@ const Login = () => {
 
     try {
       await login(email, password);
+      const token = localStorage.getItem("token");
+      console.log("Saved token:", token);
       navigate('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Login failed');
     } finally {
       setLoading(false);
     }
+    
+
   };
 
   return (

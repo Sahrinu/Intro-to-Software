@@ -10,6 +10,7 @@ import eventRoutes from './routes/event.routes';
 import maintenanceRoutes from './routes/maintenance.routes';
 import assistantRoutes from './routes/assistant.routes';
 
+
 dotenv.config();
 
 const app = express();
@@ -20,7 +21,10 @@ console.log('Running from:', process.cwd());
 console.log('Expecting database at:', path.resolve(process.cwd(), 'campus_management.db'));
 
 // --- Middleware ---
-app.use(cors());
+app.use(cors({
+  origin: true, // or "http://localhost:8080"
+  allowedHeaders: ["Content-Type", "Authorization"], // <-- important
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
