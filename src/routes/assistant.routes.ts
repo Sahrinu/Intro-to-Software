@@ -5,8 +5,8 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const router = express.Router();
 
-// Store conversation history per user (in-memory storage, last 5 messages)
-const conversationHistory = new Map<number, Array<{ role: string; content: string }>>();
+// Store global conversation history from all users (shared FAQ-style context)
+const globalConversationHistory: Array<{ role: string; content: string }> = [];
 
 // Initialize Gemini client
 const getGeminiClient = () => {
@@ -31,14 +31,7 @@ router.post(
       }
 
       const { message } = req.body;
-      const userId = (req as any).user.id;
       const genAI = getGeminiClient();
-
-      // Get or initialize conversation history for this user
-      if (!conversationHistory.has(userId)) {
-        conversationHistory.set(userId, []);
-      }
-      const history = conversationHistory.get(userId)!;
 
       const systemPrompt = `You are a helpful AI assistant for a sustainable campus management system. 
 
@@ -79,11 +72,11 @@ Be concise (2-3 sentences max). Don't ask users for information - just guide the
         try {
           const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
           
-          // Build conversation context with history
+          // Build conversation context with full global history
           let conversationContext = systemPrompt + "\n\n";
           
-          // Add previous conversation history (last 5 exchanges)
-          history.forEach((entry) => {
+          // Add all previous conversation history from all users
+          globalConversationHistory.forEach((entry) => {
             if (entry.role === "user") {
               conversationContext += `User: ${entry.content}\n\n`;
             } else {
@@ -98,14 +91,9 @@ Be concise (2-3 sentences max). Don't ask users for information - just guide the
           const response = await result.response;
           const responseText = response.text() || "Sorry, I could not generate a response.";
 
-          // Store conversation in history (keep only last 5 exchanges = 10 messages)
-          history.push({ role: "user", content: message });
-          history.push({ role: "assistant", content: responseText });
-          
-          // Keep only last 5 exchanges (10 messages)
-          if (history.length > 10) {
-            history.splice(0, history.length - 10);
-          }
+          // Store conversation in global history (shared across all users)
+          globalConversationHistory.push({ role: "user", content: message });
+          globalConversationHistory.push({ role: "assistant", content: responseText });
 
           res.json({ response: responseText, source: "gemini" });
         } catch (error: any) {
